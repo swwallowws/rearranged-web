@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" data-category="transform">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rearranged: new lab</title>
+<link rel="icon" href="favicons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
+<link rel="stylesheet" href="vendor/design/tokens.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  main { max-width: 860px; }
+  section.step { border-top: var(--hairline); padding: 8px 0 20px; }
+  section.step h2 span:first-child { color: var(--acc); margin-right: 8px; }
+  section.step h2 .sub { color: var(--ink-mut); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 8px; }
+  section.step:first-child { border-top: 0; padding-top: 0; }
+  section.step.off { opacity: .45; pointer-events: none; }
+  td select { padding: 3px 6px; }
+  td.reason { color: var(--ink-mut); font-size: 13px; }
+  #progress { border-left: 2px solid var(--acc); padding: 4px 0 4px 12px; margin: 12px 0; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1><a href="index.html">Rearranged<span>.</span></a></h1>
+  <nav class="links"><a href="index.html">labs</a><a href="new.html" class="here">new lab</a></nav>
+</header>
+<main>
+  <section class="step" id="step-song">
+    <h2><span>1</span>Song-a <span class="sub">the song to cover</span></h2>
+    <input type="file" id="song" accept=".mid,.midi">
+    <div class="wide"><table id="song-tracks" class="hidden"></table></div>
+  </section>
+
+  <section class="step" id="step-donor">
+    <h2><span>2</span>Song-b <span class="sub">the habits to borrow</span></h2>
+    <input type="file" id="donor" accept=".mid,.midi">
+    <div class="wide"><table id="donor-tracks" class="hidden"></table></div>
+  </section>
+
+  <section class="step off" id="step-parts">
+    <h2><span>3</span>Parts</h2>
+    <div class="grid">
+      <span class="label">Parts file</span>
+      <span class="row" style="margin:0"><input type="file" id="parts" accept=".json"><button id="parts-clear" class="hidden">remove</button></span>
+      <span></span><span class="mut" id="parts-note">optional: without one, every 8 bars</span>
+      <span class="label">Try first</span><span><select id="part"></select></span>
+      <span class="label sf hidden">Sounds</span>
+      <span class="row sf hidden" style="margin:0"><span id="sf-note" class="mut"></span><a href="#" id="sf-own" class="mut">use your own soundfont</a><input type="file" id="soundfont" accept=".sf2,.sf3" class="hidden"></span>
+    </div>
+  </section>
+
+  <section class="step off" id="step-go">
+    <h2><span>4</span>Build</h2>
+    <div class="row"><button class="primary" id="go">Create lab</button><span id="go-note" class="err"></span></div>
+    <div id="progress" class="hidden mono"></div>
+  </section>
+</main>
+<script type="module">
+import { labHref, setupRuns } from "./js/runs.js";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const ROLES = {song: ["chords", "bass", "lead", "drums", "ignore"], donor: ["style", "bass", "drums", "ignore"]};
+const picked = {song: null, donor: null};             // {file, tracks}
+const B = await setupRuns();
+// in the browser the lab plays through the built-in General MIDI sounds, fetched now so the
+// first play is quick; a soundfont of your own is optional and kept in this browser
+if (B.setSoundfont) {
+  B.prefetchSoundfont();
+  document.querySelectorAll(".sf").forEach((e) => e.classList.remove("hidden"));
+  let own = false;
+  const showSf = (sf) => {
+    own = !sf.builtin;
+    $("sf-note").className = "mut";
+    $("sf-note").textContent = own ? `${sf.name}, kept in this browser ·` : "built-in General MIDI ·";
+    $("sf-own").textContent = own ? "use the built-in sounds" : "use your own soundfont";
+  };
+  showSf(await B.soundfontInfo());
+  $("sf-own").onclick = async (e) => {
+    e.preventDefault();
+    if (own) showSf(await B.clearSoundfont());
+    else $("soundfont").click();
+  };
+  $("soundfont").onchange = async () => {
+    const f = $("soundfont").files[0];
+    if (!f) return;
+    try { showSf(await B.setSoundfont(f)); } catch (err) { $("sf-note").className = "err"; $("sf-note").textContent = err.message; }
+    $("soundfont").value = "";
+  };
+}
+
+function drawTracks(kind) {
+  const t = $(`${kind}-tracks`);
+  t.classList.remove("hidden");
+  t.innerHTML = "<tr><th>#</th><th>track</th><th>notes</th><th>role</th><th>why</th></tr>" +
+    picked[kind].tracks.map((x, i) =>
+      `<tr><td class="mono">${x.index + 1}</td><td>${esc(x.name)}</td><td class="mono">${x.notes}</td>` +
+      `<td><select data-kind="${kind}" data-i="${i}">` +
+      ROLES[kind].map((r) => `<option${r === x.role ? " selected" : ""}>${r}</option>`).join("") +
+      `</select></td><td class="reason">${esc(x.reason)}</td></tr>`).join("");
+}
+
+document.addEventListener("change", (e) => {
+  const s = e.target.closest("select[data-kind]");
+  if (!s) return;
+  const x = picked[s.dataset.kind].tracks[+s.dataset.i];
+  x.role = s.value;
+  x.reason = "you picked this";
+  drawTracks(s.dataset.kind);
+  check();
+});
+
+async function choose(kind) {
+  const file = $(kind).files[0];
+  picked[kind] = null;
+  $(`${kind}-tracks`).classList.add("hidden");
+  if (!file) return refresh();
+  try {
+    picked[kind] = {file, tracks: (await B.guess(file, kind)).tracks};
+    drawTracks(kind);
+  } catch (err) {
+    const t = $(`${kind}-tracks`);
+    t.classList.remove("hidden");
+    t.innerHTML = `<tr><td class="err">${esc(err.message)}</td></tr>`;
+  }
+  refresh();
+}
+$("song").onchange = () => choose("song");
+$("donor").onchange = () => choose("donor");
+$("parts").onchange = refresh;
+$("parts-clear").onclick = () => { $("parts").value = ""; refresh(); };
+
+async function refresh() {
+  const ready = picked.song && picked.donor;
+  $("step-parts").classList.toggle("off", !ready);
+  $("parts-clear").classList.toggle("hidden", !$("parts").files[0]);
+  $("part").innerHTML = "";
+  if (!ready) return check();
+  try {
+    const got = await B.partsPreview(picked.song.file, picked.donor.file, $("parts").files[0] || null);
+    $("parts-note").className = "mut";
+    $("parts-note").textContent = got.auto
+      ? "optional: without one, every 8 bars"
+      : `${got.parts.length} parts from the file`;
+    $("part").innerHTML = got.parts.map((p) =>
+      `<option value="${p.index}">${esc(p.name)} (${p.start.toFixed(0)}-${p.end.toFixed(0)} s)</option>`).join("");
+  } catch (err) {
+    $("parts-note").className = "err";
+    $("parts-note").textContent = err.message;
+  }
+  check();
+}
+
+function roleMap(kind) {
+  return Object.fromEntries(picked[kind].tracks.filter((x) => x.role !== "ignore").map((x) => [x.index, x.role]));
+}
+
+function problem() {
+  if (!picked.song || !picked.donor) return "pick both MIDI files";
+  if (!$("part").options.length) return "no parts to try";
+  const s = Object.values(roleMap("song")), d = Object.values(roleMap("donor"));
+  if (!s.includes("chords")) return "song-a needs a chords track";
+  if (!d.includes("style")) return "song-b needs a style track";
+  for (const [label, roles] of [["song-a", s], ["song-b", d]])
+    for (const r of ["bass", "lead", "drums"])
+      if (roles.filter((x) => x === r).length > 1) return `${label}: pick only one ${r} track`;
+  return "";
+}
+
+function check() {
+  const p = problem();
+  $("step-go").classList.toggle("off", !picked.song || !picked.donor);
+  $("go").disabled = !!p;
+  $("go-note").textContent = picked.song && picked.donor ? p : "";
+}
+
+$("go").onclick = async () => {
+  $("go").disabled = true;
+  $("go-note").textContent = "";
+  let id;
+  try {
+    id = (await B.createLab({song: picked.song.file, donor: picked.donor.file, parts: $("parts").files[0] || null,
+                             songRoles: roleMap("song"), donorRoles: roleMap("donor"), part: +$("part").value})).id;
+  } catch (err) {
+    $("go-note").textContent = err.message;
+    $("go").disabled = false;
+    return;
+  }
+  const t0 = Date.now(), prog = $("progress");
+  prog.classList.remove("hidden");
+  const poll = async () => {
+    const st = await B.status(id);
+    if (st.state === "ready") { location.href = labHref(id, B.where); return; }
+    if (st.state === "error") {
+      prog.innerHTML = `<span class="err">build failed: ${esc(st.error)}</span>`;
+      $("go").disabled = false;
+      return;
+    }
+    prog.textContent = `building 24 versions… ${Math.round((Date.now() - t0) / 1000)} s`;
+    setTimeout(poll, B.where === "browser" ? 200 : 1000);
+  };
+  poll();
+};
+check();
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+/* rearranged guided part. Colours, type and shape come from the shared design
+   system (../vendor/design/tokens.css, steprail.css, demoshell.css); this
+   file only lays out the live piece the shell wraps. */
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+.mut { color: var(--ink-mut); }
+.mono { font-family: var(--font-mono); }
+.small { font-size: 12px; }
+.cap {
+  margin: 0; font: 500 11px/1.4 var(--font-mono); letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-mut);
+}
+
+button:not(.iconbutton) {
+  color: var(--ink); background: var(--ground-2); border: var(--hairline); border-radius: var(--radius);
+  padding: 4px calc(var(--space) * 1.25); cursor: pointer; font: 500 12px/1.4 var(--font-mono);
+}
+button:not(.iconbutton):hover:not(:disabled) { background: var(--band); }
+button:not(.iconbutton):disabled { opacity: .45; cursor: default; }
+button:not(.iconbutton)[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+
+/* ---- the live piece: the stage the shell wraps ---- */
+.live { display: grid; gap: calc(var(--space) * 2); min-width: 0; }
+
+.missing { margin: 0; padding: calc(var(--space) * 2); border: var(--hairline); background: var(--ground-2); font: 13px/1.5 var(--font-mono); }
+
+.pane { border: var(--hairline); background: var(--ground-2); display: flex; flex-direction: column; min-width: 0; }
+.pane-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space); flex-wrap: wrap;
+  padding: var(--space) calc(var(--space) * 1.5); border-bottom: var(--hairline);
+}
+.pane-note { margin: 0; padding: var(--space) calc(var(--space) * 1.5) 0; }
+.transport {
+  display: flex; align-items: center; gap: calc(var(--space) * 1.5); flex-wrap: wrap;
+  padding: calc(var(--space) * 1.5);
+}
+.seg { display: inline-flex; flex-wrap: wrap; }
+.seg button + button { margin-left: -1px; }
+.seg button[aria-pressed="true"] { position: relative; z-index: 1; }
+
+/* ---- the part: a piano roll of what plays, song-a's chords along the top ---- */
+.strip {
+  position: relative; height: 168px; margin: 0 calc(var(--space) * 1.5);
+  border: var(--hairline); background: var(--ground); overflow: hidden;   /* click or drag to move the playhead: playhead.css */
+}
+.behind { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.chords { position: absolute; inset: 0; pointer-events: none; }
+.chord {
+  position: absolute; top: 0; bottom: 0; border-right: var(--hairline);
+  padding: 3px 5px; font: 11px/1.3 var(--font-mono); color: var(--ink-mut); overflow: hidden; white-space: nowrap;
+}
+.chord.tiny { color: transparent; padding: 0; }
+.head-line { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--acc); pointer-events: none; }
+.strip-msg { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
+
+.habits {
+  display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: var(--space) calc(var(--space) * 1.5);
+  align-items: center; padding: calc(var(--space) * 1.5) calc(var(--space) * 1.5) 0;
+  transition: opacity 900ms ease;
+}
+.habits .label { font-size: 13px; color: var(--ink-mut); }
+.habits.off { opacity: .45; }
+.changed { margin: 0; padding: var(--space) calc(var(--space) * 1.5) calc(var(--space) * 1.5); min-height: 3.2em; color: var(--ink-mut); }
+.changed b { color: var(--ink); font-weight: 600; }
+/* the two songs, named under the version switch */
+.songs { margin: 0; padding: 0 calc(var(--space) * 1.5) var(--space); display: grid; gap: 2px; }
+.songs > div { display: flex; gap: var(--space); align-items: baseline; }
+.songs dt { font: 600 11px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mut); min-width: 5.5em; }
+.songs dd { margin: 0; color: var(--ink); }
+
+/* ---- whole song (free play) ---- */
+.sections {
+  position: relative; height: 54px; margin: 0 calc(var(--space) * 1.5);
+  border: var(--hairline); background: var(--ground); overflow: hidden; cursor: pointer;
+}
+.sec {
+  position: absolute; top: 0; bottom: 0; border-right: var(--hairline); padding: 4px 5px;
+  font: 11px/1.3 var(--font-mono); color: var(--ink-mut); overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.sec b, .sec small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.sec b { font-weight: 500; }
+.sec small { font-size: 10px; opacity: .75; }     /* the part's bars, under its name */
+.sec.narrow { color: transparent; }
+.sec.current { color: var(--acc); background: color-mix(in oklab, var(--acc) 12%, transparent); }
+.covers { display: grid; gap: var(--space); padding: calc(var(--space) * 1.5); }
+.covers button { text-align: left; font-weight: 400; white-space: normal; }
+
+@media (max-width: 600px) {
+  .habits { grid-template-columns: 1fr; gap: 4px; }
+  .habits .label { margin-top: var(--space); }
+}
+@media (prefers-reduced-motion: reduce) { .habits { transition: none; } }

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" data-category="transform">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rearranged</title>
+<link rel="icon" href="favicons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
+<link rel="stylesheet" href="vendor/design/tokens.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  .lab { display: flex; gap: 16px; align-items: baseline; padding: 12px 0; border-bottom: var(--hairline);
+         color: inherit; text-decoration: none; flex-wrap: wrap; }
+  .lab:hover b { color: var(--acc); }
+  .lab b { font-size: 16px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1><a href="index.html">Rearranged<span>.</span></a></h1>
+  <nav class="links"><a href="index.html" class="here">labs</a><a href="new.html">new lab</a></nav>
+</header>
+<main>
+  <div class="section-head" style="border-top:0;margin-top:0;padding-top:0">
+    <h2>Labs</h2><span class="spacer"></span><a class="btn primary" href="new.html">New lab</a>
+  </div>
+  <p class="mut">Song-a's harmony, played with song-b's arrangement habits.</p>
+  <div id="labs" class="mut">loading…</div>
+</main>
+<script type="module">
+import { labHref, setupRuns } from "./js/runs.js";
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const box = document.getElementById("labs");
+try {
+  const B = await setupRuns();
+  const labs = await B.labs();
+  if (!labs.length) box.textContent = "No labs yet.";
+  else {
+    box.classList.remove("mut");
+    box.innerHTML = labs.map((l) =>
+      `<a class="lab" href="${labHref(l.id, B.where)}"><b>${esc(l.title)}</b>` +
+      `${l.donor ? `<span class="mut">with ${esc(l.donor)}</span>` : ""}<span>${esc(l.part)}</span>` +
+      `<span class="spacer"></span><span class="mut mono">${new Date(l.at * 1000).toLocaleString([], {dateStyle: "short", timeStyle: "short"})}</span></a>`).join("");
+  }
+} catch (err) {
+  box.textContent = err.message;
+}
+</script>
+</body>
+</html>

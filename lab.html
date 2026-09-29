@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en" data-category="transform">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rearranged lab</title>
+<link rel="icon" href="favicons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
+<link rel="stylesheet" href="vendor/design/tokens.css">
+<link rel="stylesheet" href="vendor/design/playhead.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  main { max-width: 960px; }
+  #versions { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin: 16px 0; }
+  .ver { text-align: left; padding: 10px; }
+  .ver b { font-size: 20px; display: block; }
+  .ver.active { background: var(--acc); color: var(--ground); border-color: var(--acc); }
+  #strip { position: relative; height: 176px; border: var(--hairline); margin: 12px 0; user-select: none; cursor: crosshair; overflow: hidden; }
+  .seg { position: absolute; top: 0; bottom: 0; border-right: var(--hairline); padding: 4px 6px; font-family: var(--font-mono); font-size: 12px; overflow: hidden; }
+  .seg.low { color: var(--acc); font-weight: 700; }
+  .seg.tiny { padding: 0; color: transparent; }        /* a sliver at the part's edge: no label */
+  /* the notes sit behind the boxes: labels keep a band along the top, the roll fills the rest */
+  .behind { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #strip-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #loop { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--acc) 18%, transparent); pointer-events: none; }
+  #head { z-index: 1; }                /* above the chord boxes, so the line can be taken hold of */
+  .stars button { min-width: 36px; }
+  .verdict-clear { color: var(--acc); font-weight: 700; }
+  .transport { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0 8px; }
+  .transport .primary { min-width: 80px; }
+  #sections { position: relative; height: 150px; overflow: hidden; border: var(--hairline); margin: 8px 0; }   /* click or drag to move the playhead: playhead.css */
+  .sec { position: absolute; top: 0; bottom: 0; border-right: var(--hairline); padding: 5px 7px; overflow: hidden; }
+  .sec b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sec span { font-family: var(--font-mono); font-size: 11px; color: var(--ink-mut); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sec.narrow b, .sec.narrow span { visibility: hidden; }     /* too short to name: the note below names it */
+  .sec.dim { background: color-mix(in oklab, var(--band) 60%, transparent); }
+  .sec.current { background: color-mix(in oklab, var(--acc) 14%, transparent); }
+  .sec.current b { color: var(--acc); }
+  /* while a render runs: the current song dims and a bar sweeps along the strip */
+  #sections.rendering .sec { opacity: .5; }
+  #sections.rendering::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--acc), transparent) no-repeat; background-size: 30% 100%;
+    animation: sweep 1.1s linear infinite; }
+  @keyframes sweep { from { background-position: -30% 0; } to { background-position: 130% 0; } }
+  @media (prefers-reduced-motion: reduce) { #sections.rendering::after { animation: none; background: var(--acc); opacity: .5; } }
+  #sec-head { z-index: 2; }
+  #section-note { margin: 12px 0 16px; min-height: 7em; }
+  #section-note .grid { gap: 4px 16px; margin: 0; }
+  #section-note h3 { font-size: 14px; margin: 0 0 6px; }
+  #section-note h3 span { color: var(--ink-mut); font-weight: 400; font-family: var(--font-mono); font-size: 12px; margin-left: 8px; }
+  details.renders summary { cursor: pointer; color: var(--ink-mut); font-size: 13px; }
+  details.renders td { font-size: 13px; }
+  #override input { font: inherit; width: 90px; padding: 5px; border: var(--hairline); background: var(--ground-2); color: var(--ink); }
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1><a href="index.html">Rearranged<span>.</span></a></h1>
+  <nav class="links"><a href="index.html" class="here">labs</a><a href="new.html">new lab</a></nav>
+  <span class="spacer"></span>
+  <span id="status" class="mono mut">loading…</span>
+</header>
+<main>
+  <div class="section-head" style="border-top:0;margin-top:0;padding-top:0">
+    <h2 id="title">Part</h2><span class="spacer"></span>
+    <span class="choice"><button id="mode-switches" class="on">settings</button><button id="mode-blind">blind</button></span>
+  </div>
+  <div class="transport">
+    <button class="primary" id="play">Play</button>
+    <span id="time" class="mono mut"></span>
+    <span class="spacer"></span>
+    <button id="clearloop" class="hidden">clear loop</button>
+    <span class="mut">song-a tracks</span>
+    <span class="choice"><button id="kept-on" class="on">on</button><button id="kept-off">off</button></span>
+  </div>
+  <div id="strip"><canvas id="roll" class="behind" aria-label="Piano roll of the version playing"></canvas><div id="strip-msg" class="mono mut">loading…</div><div id="loop" class="hidden"></div><div id="head" class="playhead" title="Drag to move the playhead"></div></div>
+  <div class="row" id="override-row"></div>
+  <div id="switches" class="grid"></div>
+  <div id="versions" class="hidden"></div>
+  <div class="grid">
+    <span class="label">Rating</span><span class="choice stars" id="stars"></span>
+    <span class="label">Tags</span><span class="row" id="tags" style="margin:0"></span>
+  </div>
+  <div class="row"><span id="progress" class="mut mono"></span><span class="spacer"></span><button id="reveal">reveal settings</button></div>
+  <details class="keys"><summary>Shortcuts</summary>
+    <kbd>space</kbd> play · <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>-<kbd>9</kbd> switch version ·
+    <kbd>shift</kbd>+<kbd>1</kbd>-<kbd>5</kbd> rate · <kbd>m</kbd> song-a tracks ·
+    timeline: click to jump, drag to loop, drag the playhead line to move it, double-click a chord to fix it ·
+    whole song: click or drag to move the playhead
+  </details>
+  <div id="results" class="hidden"></div>
+
+  <div class="section-head"><h2>2 · Whole song</h2><span class="spacer"></span><span id="song-status" class="mono mut"></span></div>
+  <div class="row"><button class="primary" id="use-part">Render with the settings above</button>
+    <span class="mut" id="song-hint">When a version of the part sounds right, render the whole song with it.</span></div>
+  <div id="song-switches" class="grid"></div>
+  <div class="transport">
+    <button class="primary" id="song-play">Play</button>
+    <span id="song-time" class="mono mut"></span>
+  </div>
+  <div id="sections"><canvas id="song-roll" class="behind" aria-label="Piano roll of the whole song"></canvas><div id="sec-head" class="playhead"></div></div>
+  <div id="section-note"></div>
+  <details class="renders" id="song-list-box"><summary id="song-list-title">Earlier renders</summary><div id="song-list"></div></details>
+</main>
+<script type="module">
+import { setupRuns } from "./js/runs.js";
+import { makeSynth } from "./js/synth.js";
+import { seekable, timeAt, heardTime } from "./vendor/design/playhead.js";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const q = new URLSearchParams(location.search);
+const lid = q.get("id") || location.pathname.split("/").pop();
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const RAMP = 0.010;
+const B = await setupRuns({ fixed: q.get("on") === "computer" ? "computer" : "browser" });
+// one synth on the page: the whole song always plays through it, and in the browser the part too
+const synth = makeSynth(() => B.soundfont(lid));
+const midiPart = B.audio === "midi";
+
+let lab, ctx, buffers = {}, loops = {}, nodes = [], sources = [], current = 0, playing = false, t0 = 0, offset0 = 0;
+let loop = null, keptOn = true, ratings = {};
+const duration = () => lab.part_end - lab.part_start;
+const dbToGain = (db) => Math.pow(10, db / 20);
+const clock = () => (midiPart ? synth.ctx.currentTime : ctx.currentTime);
+const resume = () => (midiPart ? synth.audio() : ctx.resume());
+
+let ready = false;
+function padded(buf) {                 // every buffer the part's length: all sources wrap together
+  const len = Math.ceil(duration() * buf.sampleRate);
+  if (buf.length >= len) return buf;
+  const out = ctx.createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+  for (let c = 0; c < buf.numberOfChannels; c++) out.copyToChannel(buf.getChannelData(c), c);
+  return out;
+}
+
+async function load() {
+  ready = false;
+  if (playing) pause();
+  lab = await B.lab(lid);
+  if (lab.busy) { $("status").textContent = "rebuilding…"; setTimeout(load, 1000); return; }
+  if (lab.error) $("status").textContent = `rebuild failed: ${lab.error}`;
+  ratings = lab.ratings || {};
+  $("title").textContent = `1 · Try the ${lab.part}`;
+  document.title = `${lab.part} · Rearranged`;
+  if (midiPart) {
+    // the browser plays each version as one looping MIDI file through the synth
+    $("strip-msg").textContent = `preparing ${lab.variants.length} versions`;
+    loops = await B.loops(lid, lab);
+    synth.audio();
+    synth.init().catch((err) => { $("status").textContent = `no playback: ${err.message}`; });
+  } else {
+    ctx = ctx || new AudioContext();
+    const files = [...new Set(lab.variants.flatMap((v) => [v.arr, v.kept]))];
+    let done = 0;
+    buffers = {};
+    await Promise.all(files.map(async (f) => {
+      buffers[f] = padded(await ctx.decodeAudioData(await B.fileBytes(lid, f)));
+      $("strip-msg").textContent = `loading ${lab.variants.length} versions · ${++done}/${files.length}`;
+    }));
+    buildNodes();
+  }
+  $("strip-msg").classList.add("hidden");
+  $("status").textContent = "";
+  drawStrip(); drawVersions(); drawSwitches(); drawRating(); drawOverride(); updateUsePart();
+  ready = true;
+  loadRolls();
+}
+
+const NAMES = { bass: "Bass", guitar: "Guitar", lead: "Your lead guitar", drums: "Drums" };
+const LEVELS = { bass: { song: "yours", donor: "song-b style" }, guitar: { picked: "picked", strummed: "strummed" },
+                 lead: { true: "kept", false: "out" }, drums: { donor: "song-b groove", song: "yours", none: "none" } };
+let blind = false;
+
+function drawSwitches() {
+  if (!lab.factors) return;
+  const cur = lab.variants[current].settings;
+  $("switches").innerHTML = Object.entries(lab.factors).map(([f, levels]) =>
+    `<span class="label">${esc(NAMES[f] || f)}</span><span class="choice">${levels.map((l) => `<button class="${String(cur[f]) === String(l) ? "on" : ""}"
+      data-f="${esc(f)}" data-l="${esc(String(l))}">${esc((LEVELS[f] || {})[String(l)] ?? String(l))}</button>`).join("")}</span>`).join("");
+  $("switches").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    const want = { ...cur, [b.dataset.f]: b.dataset.l };
+    const i = lab.variants.findIndex((v) => Object.keys(lab.factors).every((f) => String(v.settings[f]) === String(want[f])));
+    if (i < 0) return;
+    resume(); if (!playing) start(offset0);
+    select(i);
+  });
+}
+
+// ---- piano roll of the version playing (design/roll.md): key bands, notes tinted by velocity,
+// song-a's kept tracks in muted ink, sounding notes full accent with an ink outline
+const rolls = {};
+let rollRange = null, palette = null;
+function colorOf(token) {           // tokens are light-dark() pairs a canvas can't read: resolve them
+  const el = document.createElement("span");
+  el.style.color = `var(${token})`; document.body.appendChild(el);
+  const m = getComputedStyle(el).color.match(/[\d.]+/g).slice(0, 3).map(Number); el.remove();
+  return m;
+}
+const rgb = (c) => `rgb(${c.map(Math.round).join(",")})`;
+const mix = (a, b, p) => rgb(a.map((x, i) => x * p + b[i] * (1 - p)));
+const pitchShare = (p, lo, hi) => (hi > lo ? Math.max(0, Math.min(1, (p - lo) / (hi - lo))) : 1);
+const readPalette = () => ({ acc: colorOf("--acc"), ground: colorOf("--ground-2"), band: colorOf("--band"),
+                             mut: colorOf("--ink-mut"), ink: colorOf("--ink") });
+function refreshPalette() { palette = readPalette(); drawRoll(); drawSongRoll(); }
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", refreshPalette);
+addEventListener("resize", () => { drawRoll(); drawSongRoll(); });
+
+async function loadRolls() {
+  const got = await Promise.all(lab.variants.map((v) => B.roll(lid, v.id)));
+  lab.variants.forEach((v, i) => { rolls[v.id] = got[i]; });
+  const ps = got.flatMap((r) => r.notes.map((n) => n.p));
+  rollRange = ps.length ? [Math.min(...ps) - 1, Math.max(...ps) + 1] : [48, 72];
+  refreshPalette();
+}
+
+// paint a roll into a canvas that sits behind a strip of boxes: the top `top` pixels stay clear
+// for the boxes' labels; time runs 0..length across the full width, like the boxes above it
+function paintRoll(cv, r, range, length, now, sounding, top) {
+  const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (!w) return;
+  palette = palette || readPalette();
+  cv.width = w * dpr; cv.height = h * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const { acc, ground, band, mut, ink } = palette, [lo, hi] = range;
+  const rh = (h - top - 4) / (hi - lo + 1), xs = w / length, y = (p) => h - 2 - (p - lo + 1) * rh;
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = mix(band, ground, 0.45);
+  for (let p = lo; p <= hi; p++) if ([1, 3, 6, 8, 10].includes(((p % 12) + 12) % 12)) g.fillRect(0, y(p), w, rh);
+  if (!r) return;
+  for (const n of r.notes) {
+    const on = sounding && !n.kept && now >= n.s && now < n.e;
+    const x = n.s * xs, nw = Math.max(1, (n.e - n.s) * xs - 1), ny = y(n.p), nh = Math.max(1, rh - 1);
+    // roll.md: shaded by pitch, 40 to 100 percent accent from the lowest to the highest note
+    g.fillStyle = n.kept ? mix(mut, ground, 0.3) : on ? rgb(acc) : mix(acc, ground, 0.4 + 0.6 * pitchShare(n.p, lo + 1, hi - 1));
+    g.fillRect(x, ny, nw, nh);
+    if (on && nh > 2) { g.strokeStyle = rgb(ink); g.lineWidth = 1; g.strokeRect(x + 0.5, ny + 0.5, nw - 1, nh - 1); }
+  }
+}
+
+// step 1: the version playing, behind the chord boxes
+function drawRoll() {
+  const cv = $("roll");
+  if (!lab || !rollRange || cv.classList.contains("hidden")) return;
+  paintRoll(cv, rolls[lab.variants[current].id], rollRange, duration(), position(), playing, 22);
+}
+
+// step 2: the whole-song render, behind the part boxes
+let songRoll = null, songRollStem = null;
+async function loadSongRoll(stem) {
+  if (stem === songRollStem) return;
+  songRollStem = stem;
+  const r = await B.coverRoll(lid, stem);
+  if (songRollStem !== stem) return;               // a newer render took over meanwhile
+  const ps = r.notes.map((n) => n.p);
+  songRoll = { ...r, range: ps.length ? [Math.min(...ps) - 1, Math.max(...ps) + 1] : [48, 72] };
+  drawSongRoll();
+}
+function drawSongRoll() {
+  if (!songRoll || !songParts.length) return;
+  paintRoll($("song-roll"), songRoll, songRoll.range, songLength(), sp.heard, !sp.paused, 40);
+}
+
+function setBlind(on) {
+  blind = on;
+  $("roll").classList.toggle("hidden", blind);          // the notes would give the settings away
+  drawRoll();
+  $("switches").classList.toggle("hidden", blind);
+  $("versions").classList.toggle("hidden", !blind);
+  $("mode-blind").classList.toggle("on", blind);
+  $("mode-switches").classList.toggle("on", !blind);
+}
+$("mode-blind").onclick = () => setBlind(true);
+$("mode-switches").onclick = () => setBlind(false);
+
+// ---- the part, from the server's audio files: every version plays at once, one audible
+function buildNodes() {
+  nodes.forEach((n) => n.master.disconnect());
+  nodes = lab.variants.map((v, i) => {
+    const master = ctx.createGain(), kept = ctx.createGain();
+    master.gain.value = i === current ? dbToGain(v.gain_db) : 0;
+    kept.gain.value = keptOn ? 1 : 0;
+    kept.connect(master); master.connect(ctx.destination);
+    return { master, kept };
+  });
+}
+
+function stopAll() { sources.forEach((s) => { try { s.stop(); } catch (e) {} }); sources = []; }
+
+function position(at = clock()) {
+  if (!playing) return offset0;
+  const [a, b] = loop || [0, duration()];
+  const p = offset0 + (at - t0);
+  return p < b ? p : a + ((p - a) % (b - a));
+}
+// what is heard, for the head: the clock less the output's delay (200 ms or more on
+// Bluetooth), held at the last start until its sound arrives
+const heardPosition = () => (playing ? position(heardTime(clock(), t0, midiPart ? synth.ctx : ctx)) : position());
+
+// ---- the part, in the browser: the version's looping MIDI file on the synth
+let gen = 0;
+const keptMute = (v) => (keptOn ? [] : loops[v.id].kept_channels);
+async function startMidi(from) {
+  const my = ++gen;
+  const v = lab.variants[current], l = loops[v.id];
+  const ok = await synth.start(`v${v.id}`, l.midi.buffer, typeof from === "function" ? from : () => from,
+                               { loop: true, mode: "part", held: l.notes, level: dbToGain(v.gain_db), mute: keptMute(v) });
+  if (!ok || my !== gen) return;
+  t0 = synth.ctx.currentTime;
+}
+
+function start(from) {
+  if (!ready) return;
+  if (midiPart) sp.idle(); else sp.pause();          // one player at a time
+  const [a, b] = loop || [0, duration()];
+  from = Math.min(Math.max(from, a), b - 0.01);
+  if (midiPart) {
+    offset0 = from; t0 = synth.ctx.currentTime; playing = true;
+    startMidi(from);
+  } else {
+    stopAll();
+    const when = ctx.currentTime + 0.05;
+    lab.variants.forEach((v, i) => {
+      for (const [file, dest] of [[v.arr, nodes[i].master], [v.kept, nodes[i].kept]]) {
+        const s = ctx.createBufferSource();
+        s.buffer = buffers[file]; s.loop = true; s.loopStart = a; s.loopEnd = Math.min(b, s.buffer.duration);
+        s.connect(dest); s.start(when, from); sources.push(s);
+      }
+    });
+    t0 = when; offset0 = from; playing = true;
+  }
+  $("play").textContent = "Pause"; tick();
+}
+
+function pause() {
+  offset0 = position();
+  if (midiPart) { gen++; synth.stop(); } else stopAll();
+  playing = false; $("play").textContent = "Play";
+}
+
+function select(i) {
+  if (!ready || i < 0 || i >= lab.variants.length) return;
+  if (midiPart) {
+    current = i;
+    if (playing) {                                  // the same moment in the new version
+      const at = position();
+      offset0 = at; t0 = synth.ctx.currentTime;
+      startMidi(() => at);
+    }
+  } else {
+    const now = ctx.currentTime;
+    const old = nodes[current].master.gain, neu = nodes[i].master.gain;
+    old.cancelScheduledValues(now); old.setValueAtTime(old.value, now); old.linearRampToValueAtTime(0, now + RAMP);
+    neu.cancelScheduledValues(now); neu.setValueAtTime(neu.value, now);
+    neu.linearRampToValueAtTime(dbToGain(lab.variants[i].gain_db), now + RAMP);
+    current = i;
+  }
+  drawVersions(); drawSwitches(); drawRating(); updateUsePart(); drawRoll();
+}
+
+function setKept(on) {
+  keptOn = on;
+  if (midiPart) {
+    if (ready && synth.mode === "part") synth.setMuted(keptMute(lab.variants[current]));
+  } else {
+    const now = ctx.currentTime;
+    nodes.forEach((n) => { n.kept.gain.cancelScheduledValues(now); n.kept.gain.setValueAtTime(n.kept.gain.value, now); n.kept.gain.linearRampToValueAtTime(on ? 1 : 0, now + RAMP); });
+  }
+  $("kept-on").classList.toggle("on", on);
+  $("kept-off").classList.toggle("on", !on);
+}
+
+function tick() {
+  if (!playing) return;
+  // in the browser a loop drawn on the strip is kept by jumping back at its end
+  if (midiPart && loop && offset0 + (clock() - t0) >= loop[1]) start(loop[0]);
+  showHead(headAt ?? heardPosition());
+  requestAnimationFrame(tick);
+}
+
+function showHead(p) {
+  $("head").style.left = `${(p / duration()) * 100}%`;
+  $("time").textContent = `${fmt(p)} / ${fmt(duration())}`;
+  drawRoll();
+}
+
+function drawStrip() {
+  const strip = $("strip");
+  strip.querySelectorAll(".seg").forEach((e) => e.remove());
+  for (const s of lab.segments) {
+    const a = Math.max(s.start, lab.part_start) - lab.part_start, b = Math.min(s.end, lab.part_end) - lab.part_start;
+    const el = document.createElement("div");
+    el.className = "seg" + (s.chord && s.confidence < 0.05 ? " low" : "") +
+      ((b - a) / duration() * $("strip").clientWidth < 24 ? " tiny" : "");
+    el.style.left = `${(a / duration()) * 100}%`; el.style.width = `${((b - a) / duration()) * 100}%`;
+    el.textContent = s.chord || "·";
+    el.title = s.chord ? `${s.chord} (next best ${s.runner_up}). Double-click to correct.` : "silence";
+    el.dataset.index = s.index;
+    strip.appendChild(el);
+  }
+}
+
+// the strip: a click jumps there, a drag across it draws a loop; the playhead line itself drags
+// (the design system's playhead.js): playing, the head follows the pointer and the sound moves
+// once, on release; paused, it just moves and Play starts from there
+let headAt = null;                      // where a drag holds the head, while it lasts
+seekable($("head"), {
+  toTime: (x) => { const r = $("strip").getBoundingClientRect(); return timeAt(x, r.left, r.width, duration()); },
+  enabled: () => ready,
+  onScrub: (t) => { headAt = t; if (!playing) { offset0 = t; showHead(t); } },
+  onSeek: (t) => { headAt = null; if (playing) start(t); else { offset0 = t; showHead(t); } },
+  onCancel: () => { headAt = null; if (!playing) showHead(offset0); },
+});
+
+let dragFrom = null;
+$("strip").addEventListener("mousedown", (e) => { dragFrom = e.target === $("head") ? null : e; });
+addEventListener("mouseup", (e) => {
+  if (!dragFrom || !ready) { dragFrom = null; return; }
+  const rect = $("strip").getBoundingClientRect();
+  const at = (x) => Math.min(Math.max((x - rect.left) / rect.width, 0), 1) * duration();
+  const x0 = at(dragFrom.clientX), x1 = at(e.clientX);
+  if (Math.abs(x1 - x0) > 0.3) {
+    loop = [Math.min(x0, x1), Math.max(x0, x1)];
+    $("loop").classList.remove("hidden");
+    $("clearloop").classList.remove("hidden");
+    $("loop").style.left = `${(loop[0] / duration()) * 100}%`; $("loop").style.width = `${((loop[1] - loop[0]) / duration()) * 100}%`;
+    resume(); start(loop[0]);
+  } else if (playing) {
+    start(x1);
+  } else {
+    offset0 = x1;
+    showHead(x1);
+  }
+  dragFrom = null;
+});
+$("strip").addEventListener("dblclick", (e) => {
+  if (e.target.classList.contains("seg")) drawOverride(+e.target.dataset.index);
+});
+$("clearloop").onclick = () => {
+  loop = null; $("loop").classList.add("hidden"); $("clearloop").classList.add("hidden");
+  if (playing) start(position());
+};
+
+function drawOverride(index) {
+  const row = $("override-row");
+  if (index === undefined) { row.innerHTML = ""; return; }
+  const s = lab.segments.find((x) => x.index === index);
+  row.innerHTML = `<span class="mut">Chord at ${fmt(s.start - lab.part_start)}</span>
+    <span id="override"><input id="chord-name" value="${esc(s.chord || "")}" placeholder="Am">
+    <button id="chord-save">rebuild</button></span>
+    <span class="mut">or ${esc(s.runner_up || "none")}</span>`;
+  $("chord-save").onclick = async () => {
+    try {
+      await B.chord(lid, index, $("chord-name").value.trim());
+      if (playing) pause();
+      $("status").textContent = "rebuilding…"; setTimeout(load, B.where === "browser" ? 300 : 1000);
+    } catch (err) { $("status").textContent = err.message; }
+  };
+}
+
+function drawVersions() {
+  $("versions").innerHTML = lab.variants.map((v, i) => {
+    const r = ratings[String(v.id)];
+    return `<button class="ver ${i === current ? "active" : ""}" data-i="${i}"><b>${v.label}</b>${r?.stars ? "★".repeat(r.stars) : `<span class='mut'>${r ? "tagged" : "unrated"}</span>`}</button>`;
+  }).join("");
+  $("versions").querySelectorAll(".ver").forEach((b) => b.onclick = () => { resume(); if (!playing) start(offset0); select(+b.dataset.i); });
+  $("progress").textContent = `${Object.keys(ratings).length}/${lab.variants.length} rated`;
+}
+
+function drawRating() {
+  const v = lab.variants[current], r = ratings[String(v.id)] || { stars: 0, tags: [] };
+  $("stars").innerHTML = [1, 2, 3, 4, 5].map((s) => `<button class="${r.stars === s ? "on" : ""}" data-s="${s}">${s}</button>`).join("");
+  $("stars").querySelectorAll("button").forEach((b) => b.onclick = () => rate(+b.dataset.s, r.tags));
+  $("tags").innerHTML = lab.tags.map((t) => `<button class="${r.tags.includes(t) ? "on" : ""}" data-t="${esc(t)}">${esc(t)}</button>`).join("");
+  $("tags").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    const tags = r.tags.includes(b.dataset.t) ? r.tags.filter((x) => x !== b.dataset.t) : [...r.tags, b.dataset.t];
+    rate(r.stars || null, tags);
+  });
+}
+
+async function rate(stars, tags) {
+  const v = lab.variants[current];
+  await B.rate(lid, v.id, stars, tags);
+  ratings[String(v.id)] = { stars, tags };
+  drawVersions(); drawRating();
+}
+
+$("reveal").onclick = async () => {
+  const r = await B.reveal(lid);
+  const f = Object.entries(r.factors).map(([name, x]) => `<tr><td>${esc(name)}</td>
+    <td>${Object.entries(x.levels).map(([lv, s]) => `${esc(lv)}: ${s.mean ?? "-"} (n ${s.n}${s.sd != null ? `, sd ${s.sd}` : ""})`).join("<br>")}</td>
+    <td class="${x.verdict === "clear" ? "verdict-clear" : "mut"}">${esc(x.verdict)}</td></tr>`).join("");
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const rows = r.variants.slice().sort((a, b) => (b.rating?.stars || 0) - (a.rating?.stars || 0)).map((v) => `<tr>
+    <td><b>${v.label}</b></td><td>${v.rating ? "★".repeat(v.rating.stars) : "-"}</td>
+    <td class="mono">bass ${esc(v.settings.bass)} · guitar ${esc(v.settings.guitar)} · lead ${v.settings.lead ? "kept" : "out"} · drums ${esc(v.settings.drums)}</td>
+    <td class="mono">quotes ${pct(v.metrics.quoting)} (chance ${pct(v.metrics.quoting_chance || 0)}) · off-chord ${pct(v.metrics.off_chord_on_beats)} · ${v.metrics.notes_per_s}/s · ${v.metrics.low}-${v.metrics.high} · ${v.metrics.distinct_bars} bars</td>
+    <td class="mut">${esc((v.rating?.tags || []).join(", "))}</td></tr>`).join("");
+  $("results").innerHTML = `<h2>What your ratings say (${r.rated}/${r.total})</h2>
+    <p class="mut" title="A gap of more than twice its standard error; anything less is noise.">"clear" means the gap is bigger than the noise.</p>
+    <table><tr><th>setting</th><th>mean stars per level</th><th>verdict</th></tr>${f}</table>
+    <h2>Every version</h2><table><tr><th></th><th>stars</th><th>settings</th><th>facts</th><th>tags</th></tr>${rows}</table>`;
+  $("results").classList.remove("hidden");
+};
+
+// ---- whole-song player: the browser synthesizes the MIDI with the lab's own soundfont (spessasynth),
+// so a render is only a MIDI file, jumps are exact, and a new render swaps in at the same moment
+const sp = {
+  src: "", bytes: null, at: 0, onplay() {}, onpause() {},
+  get paused() { return !(synth.running && synth.mode === "song"); },
+  get currentTime() { return this.src && !this.paused ? synth.time : this.at; },
+  // what is heard: playing, the synth's time less the output's delay, held at the last jump
+  get heard() { return this.src && !this.paused ? heardTime(synth.time, synth.from, synth.ctx) : this.at; },
+  set currentTime(t) { this.at = t; if (!this.paused) this.play(t); },
+  async load(name, autoplay) {
+    const at = this.currentTime, wasPlaying = !this.paused;
+    this.src = name;
+    this.bytes = B.fileBytes(lid, name);
+    loadSongRoll(name.replace(".mid", ""));
+    this.at = at;
+    if (autoplay || wasPlaying) this.play(at); else this.onpause();
+    drawSections();
+  },
+  async play(at) {
+    if (!this.src) return;
+    if (playing) pause();                            // one player at a time
+    let ok;
+    try {
+      $("song-status").textContent ||= "loading sounds…";
+      ok = await synth.start(this.src, this.bytes, at ?? this.at, { loop: false, mode: "song" });
+    } catch (err) { $("song-status").textContent = `no playback: ${err.message}`; return; }
+    if (ok) { this.onplay(); showDownload(); }
+  },
+  pause() {
+    if (!this.paused) { this.at = synth.time; synth.stop(); }
+    this.onpause();
+  },
+  idle() {                                           // the part takes the synth: keep the place
+    if (!this.paused) { this.at = synth.time; synth.running = false; }
+    this.onpause();
+  },
+};
+synth.onended = () => { sp.at = 0; synth.running = false; sp.onpause(); };
+
+// a render's download: the server's file, or in the browser a file made on the spot
+const downloadLink = (name, text) => `<a href="${esc(B.fileURL(lid, name))}" download="${esc(name)}" data-file="${esc(name)}">${text}</a>`;
+document.addEventListener("click", async (e) => {
+  const a = e.target.closest("a[data-file]");
+  if (!a || !B.download) return;
+  e.preventDefault();
+  const url = await B.download(lid, a.dataset.file);
+  if (!url) return;
+  const tmp = document.createElement("a");
+  tmp.href = url; tmp.download = a.dataset.file; document.body.appendChild(tmp); tmp.click(); tmp.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+});
+function showDownload() { if (sp.src) $("song-status").innerHTML = downloadLink(sp.src, "download MIDI"); }
+
+// ---- whole song: its own switches, renders kept and listed
+// lead is "kept|part": kept everywhere, or out except in one named part (song-a's solo, if it has one)
+const soloPart = () => (songParts.find((p) => /solo/i.test(p.name)) || {}).name || "";
+function songOpts() {
+  const solo = soloPart();
+  return {
+    bass: [["donor", "song-b style"], ["song", "yours"]],
+    guitar: [["picked", "picked"], ["strummed", "strummed"]],
+    lead: [["false|", "out"], ...(solo ? [[`false|${solo}`, `only in the ${solo}`]] : []), ["true|", "everywhere"]],
+    drums: [["song", "yours"], ["donor", "song-b groove"], ["none", "none"]],
+    feel: [["half|", "half-time"], ["straight|", "full speed"], ["straight|verse=half", "mixed"]],
+  };
+}
+const SONG_TIPS = { "straight|verse=half": "half-time verses, full-speed choruses" };
+const SONG_NAMES = { bass: "Bass", guitar: "Guitar", lead: "Your lead guitar", drums: "Drums", feel: "Feel" };
+const song = { bass: "donor", guitar: "picked", lead: "false|", drums: "song", feel: "half|" };
+let wanted = null, songPoll = null, rendering = false;
+
+function drawSongSwitches() {
+  $("song-switches").innerHTML = Object.entries(songOpts()).map(([k, opts]) =>
+    `<span class="label">${SONG_NAMES[k]}</span><span class="choice">${opts.map(([v, label]) =>
+      `<button class="${song[k] === v ? "on" : ""}" data-k="${k}" data-v="${esc(v)}"${SONG_TIPS[v] ? ` title="${esc(SONG_TIPS[v])}"` : ""}>${esc(label)}</button>`).join("")}</span>`).join("");
+  $("song-switches").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    song[b.dataset.k] = b.dataset.v; drawSongSwitches(); drawSections(); renderSong();
+  });
+  updateUsePart();
+}
+
+function describe(s) {
+  const feel = s.feel_in && Object.keys(s.feel_in).length ? `${s.feel}, ${Object.entries(s.feel_in).map(([p, f]) => `${p} ${f}`).join(", ")}` : s.feel;
+  return `bass ${s.bass === "donor" ? "song-b style" : "yours"} · ${s.guitar} · lead ${s.lead ? "kept" : "out"}` +
+         `${s.lead_in.length ? ` (in ${s.lead_in.join(", ")})` : ""} · drums ${s.drums} · ${feel}`;
+}
+
+async function renderSong() {
+  const [feel, feelIn] = song.feel.split("|"), [lead, leadIn] = song.lead.split("|");
+  const body = { bass: song.bass, guitar: song.guitar, lead, drums: song.drums, feel,
+                 feel_in: feelIn, lead_in: leadIn };
+  setRendering(true);
+  try {
+    const r = await B.cover(lid, body);
+    wanted = r.stem;                       // stop waiting for any earlier one; it still finishes and is kept
+    showSong(r);
+  } catch (err) { setRendering(false); $("song-status").textContent = err.message; }
+}
+
+function setRendering(on) {
+  $("sections").classList.toggle("rendering", on);
+  rendering = on;
+  updateUsePart();
+}
+
+function showSong(r) {
+  setRendering(r.status === "rendering");
+  if (r.status === "done") {
+    if (sp.src !== r.midi) sp.load(r.midi, false);
+    $("song-status").innerHTML = downloadLink(r.midi, "download MIDI");
+  } else if (r.status === "rendering") {
+    $("song-status").textContent = "rendering…";
+  } else {
+    $("song-status").textContent = r.status;
+  }
+  clearTimeout(songPoll);
+  songPoll = setTimeout(pollSongs, B.where === "browser" ? 50 : 1500);
+}
+
+async function pollSongs() {
+  const list = await B.covers(lid);
+  $("song-list-box").classList.toggle("hidden", !list.length);
+  $("song-list-title").textContent = `Earlier renders (${list.length})`;
+  $("song-list").innerHTML = `<table>${list.map((c) => `<tr>
+    <td>${esc(describe(c.settings))}</td>
+    <td style="white-space:nowrap;text-align:right">${c.status === "done" ? `<button data-m="${c.midi}">play</button> ${downloadLink(c.midi, "MIDI")}` : esc(c.status)}</td></tr>`).join("")}</table>`;
+  $("song-list").querySelectorAll("button[data-m]").forEach((b) => b.onclick = () => {
+    synth.audio(); sp.load(b.dataset.m, true);
+  });
+  const mine = list.find((c) => c.stem === wanted);
+  if (mine && mine.status === "done" && sp.src !== mine.midi) showSong(mine);
+  else if (mine && mine.status !== "done") {
+    setRendering(mine.status === "rendering");
+    $("song-status").textContent = mine.status === "rendering" ? "rendering…" : mine.status;
+  }
+  if (list.some((c) => c.status === "rendering")) songPoll = setTimeout(pollSongs, 1500);
+}
+
+// ---- the section strip: where each part is, what is special there, and why
+let songParts = [], noteFor = null;
+
+function songSettings() {        // the settings of the whole-song selection, as the server stores them
+  const [feel, feelIn] = song.feel.split("|"), [lead, leadIn] = song.lead.split("|");
+  return { bass: song.bass, guitar: song.guitar, lead: lead === "true", drums: song.drums, feel,
+           feel_in: feelIn ? Object.fromEntries(feelIn.split(",").map((x) => x.split("="))) : {},
+           lead_in: leadIn ? [leadIn] : [] };
+}
+// where a named part sits, in small print: "bars 9-16"; nothing when the name already says it
+function barsOf(p) {
+  if (!p.bars) return "";
+  const [a, b] = p.bars, text = a === b ? `bar ${a}` : `bars ${a}-${b}`;
+  return p.name.trim().toLowerCase() === text ? "" : text;
+}
+const feelOf = (s, name) => s.feel_in[name] || s.feel;
+const leadIn = (s, name) => s.lead || s.lead_in.includes(name);
+
+function tagsFor(s, p, i) {
+  const tags = [];
+  if (!p.has_chords) tags.push("drums only");
+  else {
+    const feels = new Set(songParts.filter((x) => x.has_chords).map((x) => feelOf(s, x.name)));
+    if (feels.size > 1) tags.push(feelOf(s, p.name) === "half" ? "half-time" : "full speed");
+    if (i > 0 && !songParts[i - 1].has_chords) tags.push("eases in");
+  }
+  if (leadIn(s, p.name)) tags.push("your lead");
+  return tags;
+}
+
+// what happens in one part and why, one short line per instrument; hover a line for the longer why
+function noteText(s, p, i) {
+  const rows = [];
+  const row = (label, text, why) => rows.push(
+    `<span class="label">${label}</span><span${why ? ` title="${esc(why)}"` : ""}>${text}</span>`);
+  if (!p.has_chords) {
+    row("Harmony", "none, so there is nothing to lay song-b's habits on");
+    row("Drums", s.drums === "none" ? "off, the part stays quiet" : s.drums === "song" ? "your song's, on their own" : "song-b's groove, on its own");
+  } else {
+    if (p.unsure > 0.3 && p.notes.length) {
+      row("Harmony", `drones on ${p.notes.map(esc).join(" ")}`,
+          "No standard chord name fits well here: the guitars ring open drones and colour notes, so the arrangement follows those notes directly.");
+    } else if (p.chords.length) {
+      row("Harmony", p.chords.map(esc).join(" "), "Read from your song's own guitars.");
+    }
+    row("Guitar", s.guitar === "picked" ? "song-b's picking, on your chord tones" : "song-b's strum rhythm, full chords",
+        s.guitar === "picked"
+          ? "Each note keeps its role (root, third, fifth) and moves into your chord, landing only on pitches your song plays at that moment, so nothing clashes."
+          : "Chords of your harmony, voiced where song-b's guitar sits.");
+    row("Feel", feelOf(s, p.name) === "half" ? "half-time" : "full speed",
+        feelOf(s, p.name) === "half"
+          ? "Each bar of song-b's pattern stretches over two of yours, matching your drums' two-bar groove."
+          : "song-b's pattern plays bar for bar, twice as busy as your groove.");
+    row("Bass", s.bass === "donor" ? "song-b's habits on your roots" : "your song's own line");
+    if (i > 0 && !songParts[i - 1].has_chords) row("Entry", "eases in over two bars", "The part before had no chords, so this one fades in.");
+  }
+  if (leadIn(s, p.name)) row("Lead", "your lead guitar, as written");
+  const where = [barsOf(p), `${fmt(p.start)}-${fmt(p.end)}`].filter(Boolean).join(" · ");
+  return `<h3>${esc(p.name)}<span>${where}</span></h3><div class="grid">${rows.join("")}</div>`;
+}
+
+function drawSections() {
+  if (!songParts.length) return;
+  const s = songSettings(), total = songLength();
+  $("sections").querySelectorAll(".sec").forEach((e) => e.remove());
+  drawSongRoll();
+  songParts.forEach((p, i) => {
+    const el = document.createElement("div");
+    const px = ((p.end - p.start) / total) * $("sections").clientWidth;
+    el.className = "sec" + (p.has_chords ? "" : " dim") + (px < 44 ? " narrow" : "");
+    el.style.left = `${(p.start / total) * 100}%`; el.style.width = `${((p.end - p.start) / total) * 100}%`;
+    el.innerHTML = `<b>${esc(p.name)}</b><span>${[barsOf(p), ...tagsFor(s, p, i)].filter(Boolean).map(esc).join(" · ")}</span>`;
+    el.title = `${p.name}: click or drag to move the playhead`;
+    el.dataset.i = i;
+    $("sections").appendChild(el);
+  });
+  showNote();
+}
+
+function showNote() {
+  const t = sp.currentTime;
+  const i = noteFor ?? Math.max(0, songParts.findIndex((p) => t >= p.start && t < p.end));
+  $("sections").querySelectorAll(".sec").forEach((e) => e.classList.toggle("current", +e.dataset.i === i));
+  $("section-note").innerHTML = songParts[i] ? noteText(songSettings(), songParts[i], i) : "";
+}
+
+// the strip is the player: one button, a time readout, and a click or drag anywhere on it (the
+// playhead line included) moves the playhead (the design system's playhead.js). Playing, the
+// head follows the pointer and the sound moves once, on release; paused, it just moves and Play
+// starts from there. The part under the head explains itself below. While a new version
+// renders the current one keeps playing; the new one swaps in at the same moment.
+let songAt = null;                      // where a drag holds the head, while it lasts
+const partAt = (t) => Math.max(0, songParts.findIndex((p) => t >= p.start && t < p.end));
+seekable($("sections"), {
+  duration: () => songLength(),
+  enabled: () => songParts.length > 0,
+  onScrub: (t) => {
+    songAt = t; noteFor = partAt(t); showNote();
+    if (sp.paused) { sp.at = t; drawSongRoll(); }
+  },
+  onSeek: (t) => {
+    noteFor = partAt(t); showNote();
+    if (sp.paused) { songAt = null; sp.at = t; drawSongRoll(); return; }
+    // the head stays where it was let go until the synth plays from there, not where it was
+    songAt = t; synth.audio();
+    sp.play(t).finally(() => { if (songAt === t) songAt = null; });
+  },
+  onCancel: () => { songAt = null; },
+});
+$("song-play").onclick = () => { synth.audio(); sp.paused ? sp.play() : sp.pause(); };
+// one player at a time: the whole song stops the part, and the part stops the whole song
+sp.onplay = () => { $("song-play").textContent = "Pause"; };
+sp.onpause = () => { $("song-play").textContent = "Play"; };
+
+// the song's length is song-a's, fixed: a render's synth tail or a half-loaded file must not move it
+const songLength = () => songParts.length ? songParts[songParts.length - 1].end : 0;
+
+function followPlayhead() {
+  const total = songLength(), at = Math.min(songAt ?? sp.heard, total);
+  $("song-time").textContent = sp.src ? `${fmt(at)} / ${fmt(total)}` : "";
+  if (songParts.length) {
+    $("sec-head").style.left = `${(at / total) * 100}%`;
+    if (!sp.paused && songAt === null) { noteFor = null; showNote(); drawSongRoll(); }
+  }
+  requestAnimationFrame(followPlayhead);
+}
+
+// step 1 -> step 2: the whole song takes the settings of the version playing in the part above
+// lead kept in the part means everywhere; lead out keeps the song's solo choice
+const leadFrom = (s) => s.lead ? "true|" : (song.lead.startsWith("false") ? song.lead : "false|");
+$("use-part").onclick = () => {
+  const s = lab.variants[current].settings;
+  Object.assign(song, { bass: s.bass, guitar: s.guitar, lead: leadFrom(s), drums: s.drums });
+  drawSongSwitches(); drawSections(); renderSong();
+};
+
+// the button only asks for work when there is some: it says so when the song already matches
+function updateUsePart() {
+  const s = lab && lab.variants[current] ? lab.variants[current].settings : null;
+  const same = s && s.bass === song.bass && s.guitar === song.guitar && s.drums === song.drums &&
+               leadFrom(s) === song.lead;
+  $("use-part").disabled = rendering || !s || same;
+  $("use-part").textContent = rendering ? "Rendering…" : same ? "The whole song uses these settings" : "Render with the settings above";
+}
+
+// on open: show the newest whole-song render if there is one; otherwise wait for step 2
+async function initSong() {
+  const list = await B.covers(lid);
+  const last = list.find((c) => c.status === "done");
+  if (last) {
+    const s = last.settings;
+    Object.assign(song, { bass: s.bass, guitar: s.guitar, lead: `${s.lead}|${s.lead ? "" : s.lead_in[0] || ""}`,
+      drums: s.drums, feel: `${s.feel}|${Object.entries(s.feel_in || {}).map(([p, f]) => `${p}=${f}`).join(",")}` });
+    wanted = last.stem;
+    $("song-hint").textContent = "Showing the latest render. Change a setting below to render again.";
+    showSong(last);
+  } else {
+    $("song-status").textContent = "not rendered yet";
+  }
+  drawSongSwitches(); drawSections(); pollSongs();
+}
+
+// the parts come first: the lead switch names song-a's solo part
+B.parts(lid).then((parts) => { songParts = parts; followPlayhead(); initSong(); })
+  .catch((err) => { $("song-status").textContent = err.message; });
+
+$("play").onclick = () => { resume(); playing ? pause() : start(offset0); };
+$("kept-on").onclick = () => setKept(true);
+$("kept-off").onclick = () => setKept(false);
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || !lab) return;
+  if (e.code === "Space") { e.preventDefault(); $("play").click(); }
+  else if (e.key === "ArrowRight") select(current + 1);
+  else if (e.key === "ArrowLeft") select(current - 1);
+  else if (e.key === "m") setKept(!keptOn);
+  else if (e.shiftKey && /^Digit[1-5]$/.test(e.code)) rate(+e.code.slice(5), (ratings[String(lab.variants[current].id)] || { tags: [] }).tags);
+  else if (!e.shiftKey && /^[1-9]$/.test(e.key)) select(+e.key - 1);
+});
+// a small read-only handle for checks (tools/browser-check.mjs reads it; nothing here depends on it)
+window.rearrangedLab = {
+  get ready() { return ready; }, get where() { return B.where; }, get playing() { return playing; },
+  get current() { return current; }, get songSrc() { return sp.src; }, get songPlaying() { return !sp.paused; },
+  get songTime() { return sp.currentTime; }, get songLength() { return songLength(); },
+  get partTime() { return playing ? position() : offset0; }, get partLength() { return ready ? duration() : 0; },
+  get synthLoaded() { return synth.loaded; }, get sequencerTime() { return synth.seq ? synth.seq.currentTime : null; },
+  get muted() { return [...synth.muted]; }, get peak() { return synth.peak(); }, select, setKept,
+};
+load().catch((err) => { $("status").textContent = err.message; });
+</script>
+</body>
+</html>
