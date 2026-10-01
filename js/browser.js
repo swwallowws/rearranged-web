@@ -4,7 +4,7 @@
 import init, * as engine from "../pkg/rearranged.js";
 import { store } from "./store.js";
 
-const TAGS = ["sounds like song-a", "sounds like song-b", "clashes", "too busy", "empty", "mechanical", "love it"];
+const TAGS = ["sounds like Song A", "sounds like Song B", "clashes", "too busy", "empty", "mechanical", "love it"];
 let ready = null;
 const loadEngine = () => (ready = ready || init());
 
@@ -26,7 +26,7 @@ const sorted = (v) => (Array.isArray(v) ? v.map(sorted)
 
 async function record(id) {
   const r = await store.get("labs", id);
-  if (!r) throw new Error("no such lab");
+  if (!r) throw new Error("no such project");
   return r;
 }
 
@@ -100,7 +100,7 @@ export function browserBackend() {
     async partsPreview(song, donor, parts) {
       await loadEngine();
       const got = JSON.parse(engine.partsPreview(await bytesOf(song), await bytesOf(donor), parts ? await parts.text() : undefined));
-      return { parts: got.parts, auto: got.auto };
+      return { parts: got.parts, auto: got.auto, bars: got.bars, end: got.end };
     },
     async createLab({ song, donor, parts, songRoles, donorRoles, part }) {
       await loadEngine();
@@ -130,12 +130,12 @@ export function browserBackend() {
         return { state: err ? "error" : "building", error: err };
       }
       const r = await store.get("labs", id);
-      if (!r || !r.lab) throw new Error("no such lab");
+      if (!r || !r.lab) throw new Error("no such project");
       return { state: "ready", error: null };
     },
     async lab(id) {
       const r = await record(id);
-      if (!r.lab) throw new Error("no such lab");
+      if (!r.lab) throw new Error("no such project");
       const lab = r.lab;
       const variants = lab.variants.map((v) => ({ id: v.id, label: v.label, gain_db: v.gain_db, arr: v.arr, kept: v.kept,
         settings: Object.fromEntries(Object.keys(lab.factors).map((f) => [f, v.settings[f]])) }));
@@ -154,7 +154,7 @@ export function browserBackend() {
     async coverRoll(id, stemName) {
       await loadEngine();
       const b = await store.get("files", `${id}/${stemName}.mid`);
-      if (!b) throw new Error("no such render");
+      if (!b) throw new Error("no such cover");
       return JSON.parse(engine.roll(b, undefined));
     },
     async rate(id, variant, stars, tags) {

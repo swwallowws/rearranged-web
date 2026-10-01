@@ -32,6 +32,8 @@ button:not(.iconbutton)[aria-pressed="true"] { border-color: var(--acc); color: 
   display: flex; align-items: center; justify-content: space-between; gap: var(--space); flex-wrap: wrap;
   padding: var(--space) calc(var(--space) * 1.5); border-bottom: var(--hairline);
 }
+.pane-bar .bar-start { display: inline-flex; align-items: center; gap: var(--space); }
+.steprail-end a { color: var(--acc); text-decoration: underline; }
 .pane-note { margin: 0; padding: var(--space) calc(var(--space) * 1.5) 0; }
 .transport {
   display: flex; align-items: center; gap: calc(var(--space) * 1.5); flex-wrap: wrap;

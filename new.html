@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rearranged: new lab</title>
+<title>Rearranged: new project</title>
 <link rel="icon" href="favicons/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="favicons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
@@ -19,32 +19,50 @@
   td select { padding: 3px 6px; }
   td.reason { color: var(--ink-mut); font-size: 13px; }
   #progress { border-left: 2px solid var(--acc); padding: 4px 0 4px 12px; margin: 12px 0; }
+  /* The parts editor: Song A as a strip, one tick per bar, a line at each part's start. */
+  .parts-strip { position: relative; height: 44px; margin: 8px 0; border: var(--hairline); border-radius: var(--radius);
+                 background: var(--ground-2); cursor: copy; touch-action: none; user-select: none; overflow: hidden; }
+  .parts-strip .seg { position: absolute; top: 0; bottom: 0; overflow: hidden; }
+  .parts-strip .seg:nth-child(even of .seg) { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .parts-strip .tick { position: absolute; top: 0; height: 8px; width: 1px; background: var(--line); pointer-events: none; }
+  .parts-strip .cut { position: absolute; top: 0; bottom: 0; width: 13px; margin-left: -6px; cursor: ew-resize; }
+  .parts-strip .cut::after { content: ""; position: absolute; top: 0; bottom: 0; left: 6px; width: 2px; background: var(--acc); }
+  .parts-strip .cut:hover::after, .parts-strip .cut.drag::after { width: 3px; left: 5px; }
+  .parts-strip .seg-label { position: absolute; bottom: 4px; left: 6px; font: 11px/1 var(--font-mono); color: var(--ink-mut);
+                            white-space: nowrap; pointer-events: none; }
+  .parts-names { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; margin: 8px 0 12px; }
+  .parts-names label { display: grid; gap: 2px; font-size: 12px; color: var(--ink-mut); }
+  .parts-names input { font: 13px/1.3 var(--font-sans); padding: 3px 6px; }
 </style>
 </head>
 <body>
 <header class="bar">
   <h1><a href="index.html">Rearranged<span>.</span></a></h1>
-  <nav class="links"><a href="index.html">labs</a><a href="new.html" class="here">new lab</a></nav>
+  <span class="tagline">simply cover.</span>
+  <nav class="links"><a href="index.html">projects</a><a href="new.html" class="here">new project</a></nav>
 </header>
 <main>
   <section class="step" id="step-song">
-    <h2><span>1</span>Song-a <span class="sub">the song to cover</span></h2>
+    <h2><span>1</span>Song A <span class="sub">the song to cover</span></h2>
     <input type="file" id="song" accept=".mid,.midi">
     <div class="wide"><table id="song-tracks" class="hidden"></table></div>
   </section>
 
   <section class="step" id="step-donor">
-    <h2><span>2</span>Song-b <span class="sub">the habits to borrow</span></h2>
+    <h2><span>2</span>Song B <span class="sub">the habits to borrow</span></h2>
     <input type="file" id="donor" accept=".mid,.midi">
     <div class="wide"><table id="donor-tracks" class="hidden"></table></div>
   </section>
 
   <section class="step off" id="step-parts">
-    <h2><span>3</span>Parts</h2>
+    <h2><span>3</span>Parts <span class="sub">Song A's verses, choruses and the rest</span></h2>
+    <p class="mut small" id="parts-help">Drag a line to move it, click inside a part to cut it there, double-click a line between two parts to join them. Every line snaps to a bar.</p>
+    <div id="parts-strip" class="parts-strip" aria-label="Song A's parts, bar by bar"></div>
+    <div id="parts-names" class="parts-names"></div>
     <div class="grid">
       <span class="label">Parts file</span>
       <span class="row" style="margin:0"><input type="file" id="parts" accept=".json"><button id="parts-clear" class="hidden">remove</button></span>
-      <span></span><span class="mut" id="parts-note">optional: without one, every 8 bars</span>
+      <span></span><span class="mut" id="parts-note">optional: loads its parts into the strip above</span>
       <span class="label">Try first</span><span><select id="part"></select></span>
       <span class="label sf hidden">Sounds</span>
       <span class="row sf hidden" style="margin:0"><span id="sf-note" class="mut"></span><a href="#" id="sf-own" class="mut">use your own soundfont</a><input type="file" id="soundfont" accept=".sf2,.sf3" class="hidden"></span>
@@ -53,7 +71,7 @@
 
   <section class="step off" id="step-go">
     <h2><span>4</span>Build</h2>
-    <div class="row"><button class="primary" id="go">Create lab</button><span id="go-note" class="err"></span></div>
+    <div class="row"><button class="primary" id="go">Create project</button><span id="go-note" class="err"></span></div>
     <div id="progress" class="hidden mono"></div>
   </section>
 </main>
@@ -131,6 +149,150 @@ $("donor").onchange = () => choose("donor");
 $("parts").onchange = refresh;
 $("parts-clear").onclick = () => { $("parts").value = ""; refresh(); };
 
+// ---- the parts editor ----
+// Song A's bar lines (downbeats, s) and length come with the preview. A part keeps its own
+// start and end, so parts can leave gaps (a parts file that skips a lead-in or stops before
+// the end comes through as written): ed.parts = [{ s, e, sSec, eSec, name, extra }], with s
+// and e bar indices (e = barCount() for the song's end), sSec and eSec the exact seconds (a
+// file's own until that edge is moved) and extra the file's other fields (like "use").
+// The strip is the one source of truth: its parts file goes to the build.
+const ed = { bars: [], end: 0, parts: [], donor: null };
+const barCount = () => ed.bars.length;
+const secAt = (b) => (b >= barCount() ? ed.end : ed.bars[b]);
+const barsText = (k) => {
+  const p = ed.parts[k], a = p.s + 1, b = Math.max(a, p.e);
+  return a === b ? `bar ${a}` : `bars ${a}-${b}`;
+};
+const nameOf = (k) => (ed.parts[k].name || "").trim() || barsText(k);
+const nearestBar = (t) => {
+  let best = 0;
+  for (let i = 1; i < barCount(); i++) if (Math.abs(ed.bars[i] - t) < Math.abs(ed.bars[best] - t)) best = i;
+  return best;
+};
+// A part's end can also sit on the song's end.
+const nearestEdge = (t) => (Math.abs(t - ed.end) <= Math.abs(t - ed.bars[nearestBar(t)]) ? barCount() : nearestBar(t));
+
+// From the engine's preview (its parts in seconds) and the file's own parts, if any.
+function loadParts(got, fileParts, keepDonor) {
+  ed.bars = got.bars || []; ed.end = got.end || 0;
+  ed.parts = [];
+  got.parts.forEach((p, i) => {
+    const s = nearestBar(p.start);
+    const e = Math.max(s + 1, Math.abs(p.end - ed.end) < 1e-3 ? barCount() : nearestEdge(p.end));
+    const prev = ed.parts[ed.parts.length - 1];
+    if (prev && s < prev.e) return; // overlapping the part before: the engine reads files in order
+    const { name: _n, startSec: _s, endSec: _e, ...extra } = (fileParts && fileParts[i]) || {};
+    ed.parts.push({ s, e, sSec: p.start, eSec: p.end, name: got.auto ? "" : p.name, extra });
+  });
+  ed.donor = keepDonor || null;
+}
+
+function partsFileText() {
+  const song = ed.parts.map((p, k) => ({ ...p.extra, name: nameOf(k), startSec: p.sSec, endSec: p.eSec }));
+  return JSON.stringify(ed.donor ? { song: { parts: song }, donor: { parts: ed.donor } } : { song: { parts: song } });
+}
+const partsFile = () => (barCount() ? new File([partsFileText()], "parts.json", { type: "application/json" }) : null);
+// For tools/parts-check.mjs: the editor's state and the parts file it would send.
+window.partsEditor = { ed, partsFileText };
+
+// The lines: a part's start (shared with the part before when they touch, so moving it moves
+// both), and its end where no part follows straight on.
+function lines() {
+  const out = [];
+  ed.parts.forEach((p, k) => {
+    const prev = ed.parts[k - 1], next = ed.parts[k + 1];
+    out.push({ k, edge: "s", at: p.sSec, shared: !!prev && prev.e === p.s });
+    if (!next || next.s !== p.e) out.push({ k, edge: "e", at: p.eSec, shared: false });
+  });
+  return out;
+}
+
+function drawParts() {
+  const strip = $("parts-strip"), x = (t) => `${(100 * t) / (ed.end || 1)}%`;
+  const keep = +$("part").value || 0;
+  strip.innerHTML = ed.parts.map((p, k) =>
+      `<div class="seg" style="left:${x(p.sSec)};width:calc(${x(p.eSec)} - ${x(p.sSec)})">` +
+      `<span class="seg-label">${esc(nameOf(k))}</span></div>`).join("") +
+    ed.bars.map((t) => `<span class="tick" style="left:${x(t)}"></span>`).join("") +
+    lines().map((l) => `<span class="cut" data-k="${l.k}" data-edge="${l.edge}" style="left:${x(l.at)}" title="` +
+      (l.shared ? `${esc(barsText(l.k - 1))} | ${esc(barsText(l.k))}: drag to move, double-click to join`
+        : `${l.edge === "s" ? "start" : "end"} of ${esc(nameOf(l.k))}: drag to move`) + `"></span>`).join("");
+  $("parts-names").innerHTML = ed.parts.map((p, k) =>
+    `<label>${esc(barsText(k))}<input data-k="${k}" value="${esc(p.name || "")}" placeholder="${esc(barsText(k))}"></label>`).join("");
+  $("part").innerHTML = ed.parts.map((p, k) =>
+    `<option value="${k}">${esc(nameOf(k))} (${p.sSec.toFixed(0)}-${p.eSec.toFixed(0)} s)</option>`).join("");
+  $("part").value = String(Math.min(keep, ed.parts.length - 1));
+  check();
+}
+
+// Pointer on the strip: a line drags (snapping to bars, never past its neighbours); a click
+// inside a part cuts it at the nearest bar. A double-click on a shared line joins its parts.
+const strip = $("parts-strip");
+const timeAt = (e) => {
+  const r = strip.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * ed.end;
+};
+let dragging = null; // { k, edge }
+strip.addEventListener("pointerdown", (e) => {
+  if (!barCount()) return;
+  const cut = e.target.closest(".cut");
+  if (cut) {
+    dragging = { k: +cut.dataset.k, edge: cut.dataset.edge };
+    cut.classList.add("drag");
+    strip.setPointerCapture(e.pointerId);
+    return;
+  }
+  const b = nearestBar(timeAt(e));
+  const k = ed.parts.findIndex((p) => p.s < b && b < p.e);
+  if (k < 0) return; // on a line already, or in a gap
+  const p = ed.parts[k];
+  ed.parts.splice(k + 1, 0, { s: b, e: p.e, sSec: ed.bars[b], eSec: p.eSec, name: "", extra: { ...p.extra } });
+  p.e = b; p.eSec = ed.bars[b];
+  drawParts();
+});
+strip.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  const { k, edge } = dragging, p = ed.parts[k], prev = ed.parts[k - 1], next = ed.parts[k + 1];
+  if (edge === "s") {
+    const shared = !!prev && prev.e === p.s;
+    const lo = shared ? prev.s + 1 : prev ? prev.e : 0;
+    const b = Math.max(lo, Math.min(p.e - 1, nearestBar(timeAt(e))));
+    if (b === p.s) return;
+    p.s = b; p.sSec = ed.bars[b];
+    if (shared) { prev.e = b; prev.eSec = ed.bars[b]; }
+  } else {
+    const hi = next ? next.s : barCount();
+    const b = Math.max(p.s + 1, Math.min(hi, nearestEdge(timeAt(e))));
+    if (b === p.e) return;
+    p.e = b; p.eSec = secAt(b);
+  }
+  drawParts();
+  strip.querySelector(`.cut[data-k="${k}"][data-edge="${edge}"]`)?.classList.add("drag");
+});
+const endDrag = () => { dragging = null; strip.querySelectorAll(".cut.drag").forEach((c) => c.classList.remove("drag")); };
+strip.addEventListener("pointerup", endDrag);
+strip.addEventListener("pointercancel", endDrag);
+// The strip holds the pointer while a line is pressed, so the double-click lands on the strip:
+// find the shared line under the pointer by position (within its 13 px handle).
+strip.addEventListener("dblclick", (e) => {
+  const r = strip.getBoundingClientRect();
+  const px = (t) => r.left + (r.width * t) / (ed.end || 1);
+  const l = lines().find((x) => x.shared && Math.abs(px(x.at) - e.clientX) <= 7);
+  if (!l) return;
+  const prev = ed.parts[l.k - 1], p = ed.parts[l.k];
+  prev.e = p.e; prev.eSec = p.eSec;
+  ed.parts.splice(l.k, 1);
+  drawParts();
+});
+$("parts-names").addEventListener("input", (e) => {
+  const k = e.target.dataset?.k;
+  if (k == null) return;
+  ed.parts[+k].name = e.target.value;
+  strip.querySelectorAll(".seg-label")[+k].textContent = nameOf(+k);
+  const opt = $("part").options[+k];
+  if (opt) opt.textContent = `${nameOf(+k)} (${ed.parts[+k].sSec.toFixed(0)}-${ed.parts[+k].eSec.toFixed(0)} s)`;
+});
+
 async function refresh() {
   const ready = picked.song && picked.donor;
   $("step-parts").classList.toggle("off", !ready);
@@ -138,13 +300,29 @@ async function refresh() {
   $("part").innerHTML = "";
   if (!ready) return check();
   try {
-    const got = await B.partsPreview(picked.song.file, picked.donor.file, $("parts").files[0] || null);
+    const file = $("parts").files[0] || null;
+    const got = await B.partsPreview(picked.song.file, picked.donor.file, file);
+    // a loaded parts file's own Song A parts (their extra fields) and Song B parts go along unchanged
+    let donor = null, fileParts = null;
+    if (file) {
+      try { const j = JSON.parse(await file.text()); donor = j?.donor?.parts || null; fileParts = j?.song?.parts || null; }
+      catch { donor = null; fileParts = null; }
+    }
+    const editable = Array.isArray(got.bars) && got.bars.length > 1;
+    $("parts-strip").classList.toggle("hidden", !editable);
+    $("parts-names").classList.toggle("hidden", !editable);
+    $("parts-help").classList.toggle("hidden", !editable);
+    if (!editable) {
+      // an engine without bar lines (an older local server): the parts as a plain list
+      ed.bars = [];
+      $("part").innerHTML = got.parts.map((p) =>
+        `<option value="${p.index}">${esc(p.name)} (${p.start.toFixed(0)}-${p.end.toFixed(0)} s)</option>`).join("");
+      return check();
+    }
+    loadParts(got, fileParts, donor);
     $("parts-note").className = "mut";
-    $("parts-note").textContent = got.auto
-      ? "optional: without one, every 8 bars"
-      : `${got.parts.length} parts from the file`;
-    $("part").innerHTML = got.parts.map((p) =>
-      `<option value="${p.index}">${esc(p.name)} (${p.start.toFixed(0)}-${p.end.toFixed(0)} s)</option>`).join("");
+    $("parts-note").textContent = file ? `${got.parts.length} parts loaded from the file` : "optional: loads its parts into the strip above";
+    drawParts();
   } catch (err) {
     $("parts-note").className = "err";
     $("parts-note").textContent = err.message;
@@ -160,9 +338,9 @@ function problem() {
   if (!picked.song || !picked.donor) return "pick both MIDI files";
   if (!$("part").options.length) return "no parts to try";
   const s = Object.values(roleMap("song")), d = Object.values(roleMap("donor"));
-  if (!s.includes("chords")) return "song-a needs a chords track";
-  if (!d.includes("style")) return "song-b needs a style track";
-  for (const [label, roles] of [["song-a", s], ["song-b", d]])
+  if (!s.includes("chords")) return "Song A needs a chords track";
+  if (!d.includes("style")) return "Song B needs a style track";
+  for (const [label, roles] of [["Song A", s], ["Song B", d]])
     for (const r of ["bass", "lead", "drums"])
       if (roles.filter((x) => x === r).length > 1) return `${label}: pick only one ${r} track`;
   return "";
@@ -180,7 +358,7 @@ $("go").onclick = async () => {
   $("go-note").textContent = "";
   let id;
   try {
-    id = (await B.createLab({song: picked.song.file, donor: picked.donor.file, parts: $("parts").files[0] || null,
+    id = (await B.createLab({song: picked.song.file, donor: picked.donor.file, parts: partsFile() || $("parts").files[0] || null,
                              songRoles: roleMap("song"), donorRoles: roleMap("donor"), part: +$("part").value})).id;
   } catch (err) {
     $("go-note").textContent = err.message;

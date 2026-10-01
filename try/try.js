@@ -27,21 +27,21 @@ const getJSON = async (name) => {
 
 // ---- the habits a visitor can flip, in the order they are listed
 const HABITS = {
-  bass: { name: "Bass", levels: { song: "song A's", donor: "song B's" } },
+  bass: { name: "Bass", levels: { song: "Song A's", donor: "Song B's" } },
   guitar: { name: "Guitar", levels: { picked: "picked", strummed: "strummed" } },
-  drums: { name: "Drums", levels: { donor: "song B's", song: "song A's", none: "none" } },
+  drums: { name: "Drums", levels: { donor: "Song B's", song: "Song A's", none: "none" } },
   feel: { name: "Feel", levels: { straight: "full speed", half: "half-time" } },
-  lead: { name: "Lead", levels: { true: "song A's kept", false: "out" } },
+  lead: { name: "Lead", levels: { true: "Song A's kept", false: "out" } },
 };
 // what one flip changes, said once, in plain words
 const CHANGED = {
-  bass: { song: "song A's own line comes back.", donor: "song B's lines, walked onto song A's roots." },
-  guitar: { picked: "song B's picking, each note moved onto song A's chord tones.",
-            strummed: "song B's strum rhythm, struck as song A's full chords." },
-  drums: { donor: "song B's drum groove.", song: "song A's own drums.", none: "no drums: the guitars and bass stand alone." },
-  feel: { straight: "full speed: song B's bars laid over song A's one for one.",
-          half: "half-time: each song B bar stretched over two of song A's." },
-  lead: { true: "song A's lead guitar stays in.", false: "song A's lead guitar drops out." },
+  bass: { song: "Song A's own line comes back.", donor: "Song B's lines, walked onto Song A's roots." },
+  guitar: { picked: "Song B's picking, each note moved onto Song A's chord tones.",
+            strummed: "Song B's strum rhythm, struck as Song A's full chords." },
+  drums: { donor: "Song B's drum groove.", song: "Song A's own drums.", none: "no drums: the guitars and bass stand alone." },
+  feel: { straight: "full speed: Song B's bars laid over Song A's one for one.",
+          half: "half-time: each Song B bar stretched over two of Song A's." },
+  lead: { true: "Song A's lead guitar stays in.", false: "Song A's lead guitar drops out." },
 };
 // the rearranged version the switch lands on first (the approved cover): song B's bass,
 // picking and drums on song A's chords, half-time
@@ -393,7 +393,7 @@ function drawViews() {
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
   $("habits").classList.toggle("off", view !== "rearranged");
   $("habits").querySelectorAll("button").forEach((b) => { b.disabled = view !== "rearranged"; });
-  $("chords").hidden = view === "songb";            // the chords are song A's
+  $("chords").hidden = view === "songb";            // the chords are Song A's
 }
 
 function drawHabits() {
@@ -415,7 +415,7 @@ function barsOf(p) {
 // the pane's header names what loops: song A's part (which the versions share) or song B's
 function partHeader() {
   const where = barsOf(song.parts.find((p) => p.name === lab.part));
-  const name = view === "songb" ? `song B · ${loops.donor.part}` : [lab.part, where].filter(Boolean).join(" · ");
+  const name = view === "songb" ? `Song B · ${loops.donor.part}` : [lab.part, where].filter(Boolean).join(" · ");
   $("part-name").textContent = `${name} · ${fmt(duration())} loop`;
   $("time").textContent = `${fmt(position())} / ${fmt(duration())}`;
 }
@@ -430,8 +430,8 @@ function setView(v) {
   fromTop = true;
   drawViews(); drawChords(); partHeader();
   status(v === "original" ? "Song A as written."
-    : v === "songb" ? `Song B as written: ${loops.donor.part}, the band song A borrows from.`
-    : "Song B's bass, picking and drums on song A's chords, at half-time.");
+    : v === "songb" ? `Song B as written: ${loops.donor.part}, the band Song A borrows from.`
+    : "Song B's bass, picking and drums on Song A's chords, at half-time.");
   retarget();
 }
 
@@ -448,6 +448,7 @@ function flip(f, l) {
 function checkRail() {
   if (!playing) return;
   if (view === "original") rail.done("part");
+  else if (view === "songb") rail.done("songb");
   else if (view === "rearranged") {
     rail.done("switch");
     if (flipped) rail.done("habit");
@@ -456,15 +457,17 @@ function checkRail() {
 
 const shell = demoShell($("demo"), {
   product: "Rearranged",
-  title: "Same chords. Another band plays them.",
-  intro: "Song A is the song covered, song B the band it borrows from. Everything here was arranged ahead of time and plays from MIDI.",
+  title: "Listen to a song in the style of another.",
+  intro: "Song A covered in the style of Song B. Everything here was arranged ahead of time and plays from MIDI.",
   steps: [
     { id: "part", label: "Press Play" },
+    { id: "songb", label: "Switch to Song B" },
     { id: "switch", label: "Switch to Rearranged" },
     { id: "habit", label: "Flip one habit at a time" },
   ],
-  full: { coming: true },
-  endText: "Done. The song below is free to play.",
+  // The rail's title stays a plain "Try it out!"; the way to the full studio
+  // comes at the end of the tour, as in the YSAD demo.
+  endText: "That was the first step. ",
   // Space pauses the whole song if it is playing; otherwise it drives the part loop
   // (start it, or pause it if already playing). Only one thing can be primary, and
   // once the song is playing that is the louder, more surprising thing to have Space
@@ -484,6 +487,17 @@ const shell = demoShell($("demo"), {
   },
 });
 const rail = shell.rail;
+// After the tour: the way to the full studio, in a new tab so the demo stays
+// where it is, with the same words as the showcase's button.
+{
+  const full = document.createElement("a");
+  full.className = "full-link";
+  full.href = "../";
+  full.target = "_blank";
+  full.rel = "noopener";
+  full.textContent = "Full version ↗";
+  document.querySelector(".steprail-end")?.append(full);
+}
 
 function firstSettings() {
   const s = {};
@@ -558,7 +572,7 @@ function describe(s) {
 
 function drawCovers() {
   const box = $("covers");
-  if (!song.covers.length) { box.innerHTML = `<p class="mut small">No whole-song renders were frozen with this lab.</p>`; return; }
+  if (!song.covers.length) { box.innerHTML = `<p class="mut small">No covers of the whole song were saved with this demo.</p>`; return; }
   song.pick = song.pick || song.covers[0].midi;
   box.innerHTML = song.covers.map((c) => `<button type="button" data-m="${c.midi}" aria-pressed="${c.midi === song.pick}">${describe(c.settings)}</button>`).join("");
   box.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
@@ -593,8 +607,9 @@ const songPlay = iconButton($("song-play"), { key: "Space", onPress: (pressed) =
 
 // ---- start: the frozen lab, or a plain line saying how to build it
 async function start() {
+  let frozen;
   try {
-    lab = await getJSON("lab.json");
+    frozen = await getJSON("lab.json");
   } catch (err) {
     $("missing").hidden = false;
     $("missing").textContent = `demo data not built: run rearranged freeze ${DEMO_LAB} try-dist`;
@@ -603,11 +618,13 @@ async function start() {
   }
   // the parts come early: the header names the part's bars
   [loops, song.parts] = await Promise.all([getJSON("loops.json"), getJSON("parts.json").catch(() => [])]);
+  // only now: a resize (the showcase sizing its frame) redraws as soon as `lab` is set
+  lab = frozen;
   song.at = song.origin();
   getJSON("credit.json").then((c) => {
-    $("song-a").textContent = c.a || "";
-    $("song-b").textContent = c.b || "";
-    $("song-b-row").hidden = !c.b;
+    $("Song A").textContent = c.a || "";
+    $("Song B").textContent = c.b || "";
+    $("Song B-row").hidden = !c.b;
     $("songs").hidden = !(c.a || c.b);
   }).catch(() => {});
   document.querySelector('[data-view="songb"]').hidden = !loops.donor;

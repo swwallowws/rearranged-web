@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rearranged lab</title>
+<title>Rearranged project</title>
 <link rel="icon" href="favicons/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="favicons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
@@ -57,7 +57,8 @@
 <body>
 <header class="bar">
   <h1><a href="index.html">Rearranged<span>.</span></a></h1>
-  <nav class="links"><a href="index.html" class="here">labs</a><a href="new.html">new lab</a></nav>
+  <span class="tagline">simply cover.</span>
+  <nav class="links"><a href="index.html" class="here">projects</a><a href="new.html">new project</a></nav>
   <span class="spacer"></span>
   <span id="status" class="mono mut">loading…</span>
 </header>
@@ -71,7 +72,7 @@
     <span id="time" class="mono mut"></span>
     <span class="spacer"></span>
     <button id="clearloop" class="hidden">clear loop</button>
-    <span class="mut">song-a tracks</span>
+    <span class="mut">Song A tracks</span>
     <span class="choice"><button id="kept-on" class="on">on</button><button id="kept-off">off</button></span>
   </div>
   <div id="strip"><canvas id="roll" class="behind" aria-label="Piano roll of the version playing"></canvas><div id="strip-msg" class="mono mut">loading…</div><div id="loop" class="hidden"></div><div id="head" class="playhead" title="Drag to move the playhead"></div></div>
@@ -85,15 +86,15 @@
   <div class="row"><span id="progress" class="mut mono"></span><span class="spacer"></span><button id="reveal">reveal settings</button></div>
   <details class="keys"><summary>Shortcuts</summary>
     <kbd>space</kbd> play · <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>-<kbd>9</kbd> switch version ·
-    <kbd>shift</kbd>+<kbd>1</kbd>-<kbd>5</kbd> rate · <kbd>m</kbd> song-a tracks ·
+    <kbd>shift</kbd>+<kbd>1</kbd>-<kbd>5</kbd> rate · <kbd>m</kbd> Song A tracks ·
     timeline: click to jump, drag to loop, drag the playhead line to move it, double-click a chord to fix it ·
     whole song: click or drag to move the playhead
   </details>
   <div id="results" class="hidden"></div>
 
   <div class="section-head"><h2>2 · Whole song</h2><span class="spacer"></span><span id="song-status" class="mono mut"></span></div>
-  <div class="row"><button class="primary" id="use-part">Render with the settings above</button>
-    <span class="mut" id="song-hint">When a version of the part sounds right, render the whole song with it.</span></div>
+  <div class="row"><button class="primary" id="use-part">Make a cover with the settings above</button>
+    <span class="mut" id="song-hint">When a version of the part sounds right, make a cover of the whole song with it.</span></div>
   <div id="song-switches" class="grid"></div>
   <div class="transport">
     <button class="primary" id="song-play">Play</button>
@@ -101,7 +102,7 @@
   </div>
   <div id="sections"><canvas id="song-roll" class="behind" aria-label="Piano roll of the whole song"></canvas><div id="sec-head" class="playhead"></div></div>
   <div id="section-note"></div>
-  <details class="renders" id="song-list-box"><summary id="song-list-title">Earlier renders</summary><div id="song-list"></div></details>
+  <details class="renders" id="song-list-box"><summary id="song-list-title">Earlier covers</summary><div id="song-list"></div></details>
 </main>
 <script type="module">
 import { setupRuns } from "./js/runs.js";
@@ -169,8 +170,8 @@ async function load() {
 }
 
 const NAMES = { bass: "Bass", guitar: "Guitar", lead: "Your lead guitar", drums: "Drums" };
-const LEVELS = { bass: { song: "yours", donor: "song-b style" }, guitar: { picked: "picked", strummed: "strummed" },
-                 lead: { true: "kept", false: "out" }, drums: { donor: "song-b groove", song: "yours", none: "none" } };
+const LEVELS = { bass: { song: "yours", donor: "Song B style" }, guitar: { picked: "picked", strummed: "strummed" },
+                 lead: { true: "kept", false: "out" }, drums: { donor: "Song B groove", song: "yours", none: "none" } };
 let blind = false;
 
 function drawSwitches() {
@@ -563,10 +564,10 @@ const soloPart = () => (songParts.find((p) => /solo/i.test(p.name)) || {}).name 
 function songOpts() {
   const solo = soloPart();
   return {
-    bass: [["donor", "song-b style"], ["song", "yours"]],
+    bass: [["donor", "Song B style"], ["song", "yours"]],
     guitar: [["picked", "picked"], ["strummed", "strummed"]],
     lead: [["false|", "out"], ...(solo ? [[`false|${solo}`, `only in the ${solo}`]] : []), ["true|", "everywhere"]],
-    drums: [["song", "yours"], ["donor", "song-b groove"], ["none", "none"]],
+    drums: [["song", "yours"], ["donor", "Song B groove"], ["none", "none"]],
     feel: [["half|", "half-time"], ["straight|", "full speed"], ["straight|verse=half", "mixed"]],
   };
 }
@@ -587,7 +588,7 @@ function drawSongSwitches() {
 
 function describe(s) {
   const feel = s.feel_in && Object.keys(s.feel_in).length ? `${s.feel}, ${Object.entries(s.feel_in).map(([p, f]) => `${p} ${f}`).join(", ")}` : s.feel;
-  return `bass ${s.bass === "donor" ? "song-b style" : "yours"} · ${s.guitar} · lead ${s.lead ? "kept" : "out"}` +
+  return `bass ${s.bass === "donor" ? "Song B style" : "yours"} · ${s.guitar} · lead ${s.lead ? "kept" : "out"}` +
          `${s.lead_in.length ? ` (in ${s.lead_in.join(", ")})` : ""} · drums ${s.drums} · ${feel}`;
 }
 
@@ -615,7 +616,7 @@ function showSong(r) {
     if (sp.src !== r.midi) sp.load(r.midi, false);
     $("song-status").innerHTML = downloadLink(r.midi, "download MIDI");
   } else if (r.status === "rendering") {
-    $("song-status").textContent = "rendering…";
+    $("song-status").textContent = "making the cover…";
   } else {
     $("song-status").textContent = r.status;
   }
@@ -626,7 +627,7 @@ function showSong(r) {
 async function pollSongs() {
   const list = await B.covers(lid);
   $("song-list-box").classList.toggle("hidden", !list.length);
-  $("song-list-title").textContent = `Earlier renders (${list.length})`;
+  $("song-list-title").textContent = `Earlier covers (${list.length})`;
   $("song-list").innerHTML = `<table>${list.map((c) => `<tr>
     <td>${esc(describe(c.settings))}</td>
     <td style="white-space:nowrap;text-align:right">${c.status === "done" ? `<button data-m="${c.midi}">play</button> ${downloadLink(c.midi, "MIDI")}` : esc(c.status)}</td></tr>`).join("")}</table>`;
@@ -637,7 +638,7 @@ async function pollSongs() {
   if (mine && mine.status === "done" && sp.src !== mine.midi) showSong(mine);
   else if (mine && mine.status !== "done") {
     setRendering(mine.status === "rendering");
-    $("song-status").textContent = mine.status === "rendering" ? "rendering…" : mine.status;
+    $("song-status").textContent = mine.status === "rendering" ? "making the cover…" : mine.status;
   }
   if (list.some((c) => c.status === "rendering")) songPoll = setTimeout(pollSongs, 1500);
 }
@@ -678,8 +679,8 @@ function noteText(s, p, i) {
   const row = (label, text, why) => rows.push(
     `<span class="label">${label}</span><span${why ? ` title="${esc(why)}"` : ""}>${text}</span>`);
   if (!p.has_chords) {
-    row("Harmony", "none, so there is nothing to lay song-b's habits on");
-    row("Drums", s.drums === "none" ? "off, the part stays quiet" : s.drums === "song" ? "your song's, on their own" : "song-b's groove, on its own");
+    row("Harmony", "none, so there is nothing to lay Song B's habits on");
+    row("Drums", s.drums === "none" ? "off, the part stays quiet" : s.drums === "song" ? "your song's, on their own" : "Song B's groove, on its own");
   } else {
     if (p.unsure > 0.3 && p.notes.length) {
       row("Harmony", `drones on ${p.notes.map(esc).join(" ")}`,
@@ -687,15 +688,15 @@ function noteText(s, p, i) {
     } else if (p.chords.length) {
       row("Harmony", p.chords.map(esc).join(" "), "Read from your song's own guitars.");
     }
-    row("Guitar", s.guitar === "picked" ? "song-b's picking, on your chord tones" : "song-b's strum rhythm, full chords",
+    row("Guitar", s.guitar === "picked" ? "Song B's picking, on your chord tones" : "Song B's strum rhythm, full chords",
         s.guitar === "picked"
           ? "Each note keeps its role (root, third, fifth) and moves into your chord, landing only on pitches your song plays at that moment, so nothing clashes."
-          : "Chords of your harmony, voiced where song-b's guitar sits.");
+          : "Chords of your harmony, voiced where Song B's guitar sits.");
     row("Feel", feelOf(s, p.name) === "half" ? "half-time" : "full speed",
         feelOf(s, p.name) === "half"
-          ? "Each bar of song-b's pattern stretches over two of yours, matching your drums' two-bar groove."
-          : "song-b's pattern plays bar for bar, twice as busy as your groove.");
-    row("Bass", s.bass === "donor" ? "song-b's habits on your roots" : "your song's own line");
+          ? "Each bar of Song B's pattern stretches over two of yours, matching your drums' two-bar groove."
+          : "Song B's pattern plays bar for bar, twice as busy as your groove.");
+    row("Bass", s.bass === "donor" ? "Song B's habits on your roots" : "your song's own line");
     if (i > 0 && !songParts[i - 1].has_chords) row("Entry", "eases in over two bars", "The part before had no chords, so this one fades in.");
   }
   if (leadIn(s, p.name)) row("Lead", "your lead guitar, as written");
@@ -784,7 +785,7 @@ function updateUsePart() {
   const same = s && s.bass === song.bass && s.guitar === song.guitar && s.drums === song.drums &&
                leadFrom(s) === song.lead;
   $("use-part").disabled = rendering || !s || same;
-  $("use-part").textContent = rendering ? "Rendering…" : same ? "The whole song uses these settings" : "Render with the settings above";
+  $("use-part").textContent = rendering ? "Making the cover…" : same ? "The whole song uses these settings" : "Make a cover with the settings above";
 }
 
 // on open: show the newest whole-song render if there is one; otherwise wait for step 2
@@ -796,7 +797,7 @@ async function initSong() {
     Object.assign(song, { bass: s.bass, guitar: s.guitar, lead: `${s.lead}|${s.lead ? "" : s.lead_in[0] || ""}`,
       drums: s.drums, feel: `${s.feel}|${Object.entries(s.feel_in || {}).map(([p, f]) => `${p}=${f}`).join(",")}` });
     wanted = last.stem;
-    $("song-hint").textContent = "Showing the latest render. Change a setting below to render again.";
+    $("song-hint").textContent = "Showing the latest cover. Change a setting below to make another.";
     showSong(last);
   } else {
     $("song-status").textContent = "not rendered yet";

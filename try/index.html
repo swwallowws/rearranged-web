@@ -30,12 +30,15 @@
       <p id="missing" class="missing" hidden></p>
 
       <section class="pane" id="part-pane" aria-label="One part, played in a loop" data-demoshell-mark>
+        <!-- Play first, top-left of the product (design 1.15). -->
         <div class="pane-bar">
-          <span class="cap" id="part-name">Part</span>
+          <span class="bar-start">
+            <button type="button" id="play" disabled data-icon="play" data-toggle></button>
+            <span class="cap" id="part-name">Part</span>
+          </span>
           <span id="time" class="mono mut small"></span>
         </div>
         <div class="transport">
-          <button type="button" id="play" disabled data-icon="play" data-toggle></button>
           <span role="group" aria-label="Which version plays" class="seg" id="views">
             <button type="button" data-view="original" aria-pressed="true">Song A</button>
             <button type="button" data-view="songb" aria-pressed="false" hidden>Song B</button>
@@ -61,13 +64,13 @@
           <span class="cap">Whole song</span>
           <span id="song-status" class="mono mut small"></span>
         </div>
-        <p class="pane-note mut small">Pick a render, or click a section to jump there.</p>
+        <p class="pane-note mut small">Pick a cover, or click a part to jump there.</p>
         <div class="transport">
           <button type="button" id="song-play" disabled data-icon="play" data-toggle></button>
           <span id="song-time" class="mono mut small"></span>
         </div>
         <div id="sections" class="sections" aria-label="Song A's parts: click one to play from there"><div id="sec-head" class="head-line"></div></div>
-        <div id="covers" class="covers" role="group" aria-label="Whole-song renders"></div>
+        <div id="covers" class="covers" role="group" aria-label="Covers of the whole song"></div>
       </section>
     </div>
   </div>

@@ -19,13 +19,14 @@
 <body>
 <header class="bar">
   <h1><a href="index.html">Rearranged<span>.</span></a></h1>
-  <nav class="links"><a href="index.html" class="here">labs</a><a href="new.html">new lab</a></nav>
+  <span class="tagline">simply cover.</span>
+  <nav class="links"><a href="index.html" class="here">projects</a><a href="new.html">new project</a></nav>
 </header>
 <main>
   <div class="section-head" style="border-top:0;margin-top:0;padding-top:0">
-    <h2>Labs</h2><span class="spacer"></span><a class="btn primary" href="new.html">New lab</a>
+    <h2>Projects</h2><span class="spacer"></span><a class="btn primary" href="new.html">New project</a>
   </div>
-  <p class="mut">Song-a's harmony, played with song-b's arrangement habits.</p>
+  <p class="mut">Song A's harmony, played with Song B's arrangement habits.</p>
   <div id="labs" class="mut">loading…</div>
 </main>
 <script type="module">
@@ -35,7 +36,7 @@ const box = document.getElementById("labs");
 try {
   const B = await setupRuns();
   const labs = await B.labs();
-  if (!labs.length) box.textContent = "No labs yet.";
+  if (!labs.length) box.textContent = "No projects yet.";
   else {
     box.classList.remove("mut");
     box.innerHTML = labs.map((l) =>

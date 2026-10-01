@@ -6,6 +6,8 @@ header.bar { display: flex; gap: 16px; align-items: baseline; padding: 16px 24px
 header.bar h1 { margin: 0; font-size: 22px; font-weight: var(--head-weight); font-stretch: var(--head-stretch); letter-spacing: var(--head-tracking); }
 header.bar h1 a { color: inherit; text-decoration: none; }
 header.bar h1 span { color: var(--acc); }
+/* The line after the name, as in Starling's and Coming Undone's headers. */
+header.bar .tagline { color: var(--ink-mut); white-space: nowrap; }
 nav.links { display: flex; gap: 16px; }
 nav.links a { color: var(--ink-mut); text-decoration: none; }
 nav.links a:hover, nav.links a.here { color: var(--ink); }
