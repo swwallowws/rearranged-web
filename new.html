@@ -16,6 +16,10 @@
   section.step h2 .sub { color: var(--ink-mut); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 8px; }
   section.step:first-child { border-top: 0; padding-top: 0; }
   section.step.off { opacity: .45; pointer-events: none; }
+  /* where a dragged file will land */
+  section.step.drop { outline: 2px dashed var(--acc); outline-offset: 4px; }
+  body.drop main { outline: 2px dashed var(--line); outline-offset: 8px; }
+  .drop-hint { margin: 6px 0 0; font-size: 12px; }
   td select { padding: 3px 6px; }
   td.reason { color: var(--ink-mut); font-size: 13px; }
   #progress { border-left: 2px solid var(--acc); padding: 4px 0 4px 12px; margin: 12px 0; }
@@ -45,6 +49,7 @@
   <section class="step" id="step-song">
     <h2><span>1</span>Song A <span class="sub">the song to cover</span></h2>
     <input type="file" id="song" accept=".mid,.midi">
+    <p class="drop-hint mut">Or drag files onto the page: both songs, and a parts file, at once.</p>
     <div class="wide"><table id="song-tracks" class="hidden"></table></div>
   </section>
 
@@ -148,6 +153,42 @@ $("song").onchange = () => choose("song");
 $("donor").onchange = () => choose("donor");
 $("parts").onchange = refresh;
 $("parts-clear").onclick = () => { $("parts").value = ""; refresh(); };
+
+// ---- drag and drop: a MIDI file onto Song A or Song B, a parts file onto Parts; several
+// files dropped anywhere fill Song A, then Song B, then the parts file (all three at once works).
+const isMidi = (f) => /\.midi?$/i.test(f.name), isJson = (f) => /\.json$/i.test(f.name);
+function put(id, file) {
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  $(id).files = dt.files;
+}
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+document.addEventListener("dragover", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "copy";
+  document.querySelectorAll(".step.drop").forEach((s) => s.classList.remove("drop"));
+  (e.target.closest?.("#step-song, #step-donor, #step-parts") || document.body).classList.add("drop");
+});
+const clearDrop = () => document.querySelectorAll(".drop").forEach((s) => s.classList.remove("drop"));
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) clearDrop(); });
+document.addEventListener("drop", async (e) => {
+  const files = [...(e.dataTransfer?.files || [])];
+  if (!files.length) return;
+  e.preventDefault();
+  clearDrop();
+  const on = e.target.closest?.("#step-song, #step-donor, #step-parts")?.id;
+  const midis = files.filter(isMidi), json = files.find(isJson);
+  let slots = on === "step-song" ? ["song", "donor"] : on === "step-donor" ? ["donor", "song"] : null;
+  if (!slots) {
+    // dropped elsewhere: empty slots first, in order; when both are full, start again from Song A
+    const free = ["song", "donor"].filter((id) => !$(id).files.length);
+    slots = midis.length > free.length ? ["song", "donor"] : free;
+  }
+  for (const [i, f] of midis.slice(0, slots.length).entries()) { put(slots[i], f); await choose(slots[i]); }
+  if (json) { put("parts", json); refresh(); }
+  if (!midis.length && !json) $("go-note").textContent = "Drop .mid files for the songs, or a .json parts file.";
+});
 
 // ---- the parts editor ----
 // Song A's bar lines (downbeats, s) and length come with the preview. A part keeps its own
