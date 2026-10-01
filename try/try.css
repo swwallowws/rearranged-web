@@ -13,13 +13,14 @@
   text-transform: uppercase; color: var(--ink-mut);
 }
 
-button:not(.iconbutton) {
+/* The page's own text buttons; the design system's icon and start-over buttons keep their own look. */
+button:not(.iconbutton, .steprail-reset) {
   color: var(--ink); background: var(--ground-2); border: var(--hairline); border-radius: var(--radius);
   padding: 4px calc(var(--space) * 1.25); cursor: pointer; font: 500 12px/1.4 var(--font-mono);
 }
-button:not(.iconbutton):hover:not(:disabled) { background: var(--band); }
-button:not(.iconbutton):disabled { opacity: .45; cursor: default; }
-button:not(.iconbutton)[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); }
+button:not(.iconbutton, .steprail-reset):hover:not(:disabled) { background: var(--band); }
+button:not(.iconbutton, .steprail-reset):disabled { opacity: .45; cursor: default; }
+button:not(.iconbutton, .steprail-reset)[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); }
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 
 /* ---- the live piece: the stage the shell wraps ---- */
