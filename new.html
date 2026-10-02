@@ -20,6 +20,7 @@
   section.step.drop { outline: 2px dashed var(--acc); outline-offset: 4px; }
   body.drop main { outline: 2px dashed var(--line); outline-offset: 8px; }
   .drop-hint { margin: 6px 0 0; font-size: 12px; }
+  .roles { margin: 8px 0 0; font-size: 13px; }
   td select { padding: 3px 6px; }
   td.reason { color: var(--ink-mut); font-size: 13px; }
   #progress { border-left: 2px solid var(--acc); padding: 4px 0 4px 12px; margin: 12px 0; }
@@ -49,13 +50,15 @@
   <section class="step" id="step-song">
     <h2><span>1</span>Song A <span class="sub">the song to cover</span></h2>
     <input type="file" id="song" accept=".mid,.midi">
-    <p class="drop-hint mut">Or drag files onto the page: both songs, and a parts file, at once.</p>
+    <p class="drop-hint mut">Or drag files here.</p>
+    <p class="roles mut hidden" id="song-roles"></p>
     <div class="wide"><table id="song-tracks" class="hidden"></table></div>
   </section>
 
   <section class="step" id="step-donor">
     <h2><span>2</span>Song B <span class="sub">the habits to borrow</span></h2>
     <input type="file" id="donor" accept=".mid,.midi">
+    <p class="roles mut hidden" id="donor-roles"></p>
     <div class="wide"><table id="donor-tracks" class="hidden"></table></div>
   </section>
 
@@ -67,7 +70,7 @@
     <div class="grid">
       <span class="label">Parts file</span>
       <span class="row" style="margin:0"><input type="file" id="parts" accept=".json"><button id="parts-clear" class="hidden">remove</button></span>
-      <span></span><span class="mut" id="parts-note">optional: loads its parts into the strip above</span>
+      <span></span><span class="mut" id="parts-note">optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above</span>
       <span class="label">Try first</span><span><select id="part"></select></span>
       <span class="label sf hidden">Sounds</span>
       <span class="row sf hidden" style="margin:0"><span id="sf-note" class="mut"></span><a href="#" id="sf-own" class="mut">use your own soundfont</a><input type="file" id="soundfont" accept=".sf2,.sf3" class="hidden"></span>
@@ -113,9 +116,17 @@ if (B.setSoundfont) {
   };
 }
 
+// Roles are guessed from each track; one line says what was picked, and the table to change
+// it opens on "change" (or by itself when the build needs a role fixed).
+const shown = {song: false, donor: false};
 function drawTracks(kind) {
-  const t = $(`${kind}-tracks`);
-  t.classList.remove("hidden");
+  const t = $(`${kind}-tracks`), tracks = picked[kind].tracks;
+  const used = tracks.filter((x) => x.role !== "ignore"), left = tracks.length - used.length;
+  const r = $(`${kind}-roles`);
+  r.classList.remove("hidden");
+  r.innerHTML = "Guessed: " + (used.map((x) => `${esc(x.role)} from ${esc(x.name || `track ${x.index + 1}`)}`).join(" · ") || "none") +
+    (left ? ` · ${left} left out` : "") + ` · <a href="#" data-roles="${kind}">${shown[kind] ? "done" : "change"}</a>`;
+  t.classList.toggle("hidden", !shown[kind]);
   t.innerHTML = "<tr><th>#</th><th>track</th><th>notes</th><th>role</th><th>why</th></tr>" +
     picked[kind].tracks.map((x, i) =>
       `<tr><td class="mono">${x.index + 1}</td><td>${esc(x.name)}</td><td class="mono">${x.notes}</td>` +
@@ -133,11 +144,19 @@ document.addEventListener("change", (e) => {
   drawTracks(s.dataset.kind);
   check();
 });
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-roles]");
+  if (!a) return;
+  e.preventDefault();
+  shown[a.dataset.roles] = !shown[a.dataset.roles];
+  drawTracks(a.dataset.roles);
+});
 
 async function choose(kind) {
   const file = $(kind).files[0];
   picked[kind] = null;
   $(`${kind}-tracks`).classList.add("hidden");
+  $(`${kind}-roles`).classList.add("hidden");
   if (!file) return refresh();
   try {
     picked[kind] = {file, tracks: (await B.guess(file, kind)).tracks};
@@ -362,7 +381,7 @@ async function refresh() {
     }
     loadParts(got, fileParts, donor);
     $("parts-note").className = "mut";
-    $("parts-note").textContent = file ? `${got.parts.length} parts loaded from the file` : "optional: loads its parts into the strip above";
+    $("parts-note").textContent = file ? `${got.parts.length} parts loaded from the file` : "optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above";
     drawParts();
   } catch (err) {
     $("parts-note").className = "err";
@@ -389,6 +408,9 @@ function problem() {
 
 function check() {
   const p = problem();
+  // a role problem opens that song's table, so the fix is right there
+  for (const [kind, label] of [["song", "Song A"], ["donor", "Song B"]])
+    if (p.startsWith(label) && picked[kind] && !shown[kind]) { shown[kind] = true; drawTracks(kind); }
   $("step-go").classList.toggle("off", !picked.song || !picked.donor);
   $("go").disabled = !!p;
   $("go-note").textContent = picked.song && picked.donor ? p : "";
