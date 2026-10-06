@@ -7,13 +7,13 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 export function contactForm(box, { endpoint = CONTACT_ENDPOINT } = {}) {
   box.innerHTML = `<details class="contact"><summary>Get in touch</summary>
     <form class="contact-form" novalidate>
-      <p>Want it faster, or on your own songs at scale? I'd love to hear what you're making.</p>
-      <label><span>Name</span><input name="name" autocomplete="name"></label>
-      <label><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
-      <label><span>What are you making?</span><textarea name="message" rows="3"></textarea></label>
+      <p>Say hi, ask anything, or show me what you made.</p>
+      <label><span>Name</span><input name="name" class="ds-field" autocomplete="name"></label>
+      <label><span>Email</span><input name="email" class="ds-field" type="email" required autocomplete="email"></label>
+      <label><span>Message</span><textarea name="message" class="ds-field" rows="3"></textarea></label>
       <input type="hidden" name="_subject" value="Rearranged: new message">
       <input type="text" name="_gotcha" class="gotcha" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <div class="row"><button type="submit" class="primary">Send</button><span class="contact-msg mut" aria-live="polite"></span></div>
+      <div class="row"><button type="submit" class="ds-button primary">Send</button><span class="contact-msg mut" aria-live="polite"></span></div>
     </form></details>`;
   const form = box.querySelector("form");
   const msg = box.querySelector(".contact-msg");

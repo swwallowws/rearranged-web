@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../vendor/design/iconbutton.css">
   <link rel="stylesheet" href="../vendor/design/demoshell.css">
   <link rel="stylesheet" href="../vendor/design/playhead.css">
+  <link rel="stylesheet" href="../vendor/design/controls.css">
   <link rel="stylesheet" href="try.css">
   <script>
     // Set the mode before first paint: ?theme=paper|night (from the showcase
@@ -34,12 +35,12 @@
         <div class="pane-bar">
           <span class="bar-start">
             <button type="button" id="play" disabled data-icon="play" data-toggle></button>
-            <span class="cap" id="part-name">Part</span>
+            <span class="ds-label" id="part-name">Part</span>
           </span>
           <span id="time" class="mono mut small"></span>
         </div>
         <div class="transport">
-          <span role="group" aria-label="Which version plays" class="seg" id="views">
+          <span role="group" aria-label="Which version plays" class="ds-choice" id="views">
             <button type="button" data-view="original" aria-pressed="true">Song A</button>
             <button type="button" data-view="songb" aria-pressed="false" hidden>Song B</button>
             <button type="button" data-view="rearranged" aria-pressed="false">Rearranged</button>
@@ -61,7 +62,7 @@
 
       <section class="pane" id="song-pane" hidden aria-label="The whole song" data-demoshell-mark>
         <div class="pane-bar">
-          <span class="cap">Whole song</span>
+          <span class="ds-label">Whole song</span>
           <span id="song-status" class="mono mut small"></span>
         </div>
         <p class="pane-note mut small">Pick a cover, or click a part to jump there.</p>

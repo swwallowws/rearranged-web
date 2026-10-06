@@ -8,19 +8,7 @@
 .mut { color: var(--ink-mut); }
 .mono { font-family: var(--font-mono); }
 .small { font-size: 12px; }
-.cap {
-  margin: 0; font: 500 11px/1.4 var(--font-mono); letter-spacing: .1em;
-  text-transform: uppercase; color: var(--ink-mut);
-}
-
-/* The page's own text buttons; the design system's icon and start-over buttons keep their own look. */
-button:not(.iconbutton, .steprail-reset) {
-  color: var(--ink); background: var(--ground-2); border: var(--hairline); border-radius: var(--radius);
-  padding: 4px calc(var(--space) * 1.25); cursor: pointer; font: 500 12px/1.4 var(--font-mono);
-}
-button:not(.iconbutton, .steprail-reset):hover:not(:disabled) { background: var(--band); }
-button:not(.iconbutton, .steprail-reset):disabled { opacity: .45; cursor: default; }
-button:not(.iconbutton, .steprail-reset)[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); }
+/* Buttons, the version switch and the habit switches are the design's (controls.css), as in the lab. */
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 
 /* ---- the live piece: the stage the shell wraps ---- */
@@ -40,9 +28,6 @@ button:not(.iconbutton, .steprail-reset)[aria-pressed="true"] { border-color: va
   display: flex; align-items: center; gap: calc(var(--space) * 1.5); flex-wrap: wrap;
   padding: calc(var(--space) * 1.5);
 }
-.seg { display: inline-flex; flex-wrap: wrap; }
-.seg button + button { margin-left: -1px; }
-.seg button[aria-pressed="true"] { position: relative; z-index: 1; }
 
 /* ---- the part: a piano roll of what plays, song-a's chords along the top ---- */
 .strip {
@@ -89,7 +74,8 @@ button:not(.iconbutton, .steprail-reset)[aria-pressed="true"] { border-color: va
 .sec.narrow { color: transparent; }
 .sec.current { color: var(--acc); background: color-mix(in oklab, var(--acc) 12%, transparent); }
 .covers { display: grid; gap: var(--space); padding: calc(var(--space) * 1.5); }
-.covers button { text-align: left; font-weight: 400; white-space: normal; }
+.covers .ds-button { justify-content: flex-start; text-align: left; white-space: normal; }
+.covers .ds-button[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); }
 
 @media (max-width: 600px) {
   .habits { grid-template-columns: 1fr; gap: 4px; }

@@ -1,10 +1,11 @@
 // Where Rearranged runs: "In your browser" (the default: the engine as WebAssembly, labs kept
 // in this browser) or "This computer" (the local server, rearranged-web, shown only when it
-// answers). Every page puts the switch in its header, a line under it saying where the work
+// answers). Every page puts the Engine switch in its header, a line under it saying where the work
 // happens, and the small contact form; then asks for its backend.
 import { browserBackend } from "./browser.js";
 import { contactForm } from "./contact.js";
 import { serverBackend } from "./server.js";
+import { themeSwitch } from "../vendor/design/themeswitch.js";
 
 export const SERVER_PORT = 8010;                 // rearranged-web's default --port
 const KEY = "rearranged.runs";
@@ -41,12 +42,16 @@ export async function findServer() {
 /** Draws the switch and the note; resolves to the backend in use. `fixed` ("browser" or
  * "computer") pins a lab's own place: switching then goes to the labs of the other place. */
 export async function setupRuns({ fixed } = {}) {
-  const header = document.querySelector("header.bar");
+  const header = document.querySelector("header.ds-header");
   const slot = document.createElement("span");
-  slot.className = "runs";
-  slot.innerHTML = `<span class="mut">Runs:</span><span class="choice" role="group" aria-label="Where Rearranged runs">
-    <button type="button" data-runs="browser">In your browser</button><button type="button" data-runs="computer" hidden>This computer</button></span>`;
-  header.appendChild(slot);
+  slot.className = "runs end";
+  slot.hidden = true;
+  slot.innerHTML = `Engine:<span class="choice ds-choice small" role="group" aria-label="Where Rearranged runs">
+    <button type="button" data-runs="browser">In your browser</button><button type="button" data-runs="computer">This computer</button></span>`;
+  // the Engine switch, then the colour mode every product shares, at the header's end
+  const modes = header.querySelector(".modes");
+  header.insertBefore(slot, modes);
+  themeSwitch(modes, { onChange: () => dispatchEvent(new Event("themechange")) });
   const bar = document.createElement("div");
   bar.className = "runs-bar";
   bar.innerHTML = `<span class="runs-note"></span><span class="spacer"></span><span class="contact-slot"></span>`;
@@ -56,7 +61,8 @@ export async function setupRuns({ fixed } = {}) {
   const server = await findServer();
   let where = fixed || remembered() || "browser";
   if (where === "computer" && !server) where = "browser";
-  slot.querySelector('[data-runs="computer"]').hidden = !server;
+  // a switch with one place in it is no choice: the bar under the header already says where
+  slot.hidden = !server;
   const draw = () => {
     slot.querySelectorAll("[data-runs]").forEach((b) => b.classList.toggle("on", b.dataset.runs === where));
     bar.querySelector(".runs-note").textContent = NOTES[where];

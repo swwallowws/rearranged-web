@@ -10,8 +10,13 @@
 <link rel="stylesheet" href="vendor/design/tokens.css">
 <link rel="stylesheet" href="vendor/design/playhead.css">
 <link rel="stylesheet" href="app.css">
+<script>
+  // before paint: ?theme= wins, then the mode saved in any of the products (they share it)
+  try { let t = new URLSearchParams(location.search).get("theme");
+        if (t !== "paper" && t !== "night") t = localStorage.getItem("swwallowws:mode");
+        if (t === "paper" || t === "night") document.documentElement.dataset.theme = t; } catch (_) {}
+</script>
 <style>
-  main { max-width: 960px; }
   #versions { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin: 16px 0; }
   .ver { text-align: left; padding: 10px; }
   .ver b { font-size: 20px; display: block; }
@@ -28,7 +33,6 @@
   .stars button { min-width: 36px; }
   .verdict-clear { color: var(--acc); font-weight: 700; }
   .transport { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0 8px; }
-  .transport .primary { min-width: 80px; }
   #sections { position: relative; height: 150px; overflow: hidden; border: var(--hairline); margin: 8px 0; }   /* click or drag to move the playhead: playhead.css */
   .sec { position: absolute; top: 0; bottom: 0; border-right: var(--hairline); padding: 5px 7px; overflow: hidden; }
   .sec b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -55,35 +59,34 @@
 </style>
 </head>
 <body>
-<header class="bar">
-  <h1><a href="index.html">Rearranged<span>.</span></a></h1>
-  <span class="tagline">simply cover.</span>
-  <nav class="links"><a href="index.html" class="here">projects</a><a href="new.html">new project</a></nav>
-  <span class="spacer"></span>
-  <span id="status" class="mono mut">loading…</span>
+<header class="ds-header">
+  <a class="ds-wordmark" href="index.html">Rearranged<span class="dot">.</span></a>
+  <span id="status" class="mono mut end">Loading…</span>
+  <div class="modes end"></div>
 </header>
 <main>
+  <p class="back"><a href="index.html">← Your projects</a></p>
   <div class="section-head" style="border-top:0;margin-top:0;padding-top:0">
     <h2 id="title">Part</h2><span class="spacer"></span>
-    <span class="choice"><button id="mode-switches" class="on">settings</button><button id="mode-blind">blind</button></span>
+    <span class="choice ds-choice"><button id="mode-switches" class="on">Settings</button><button id="mode-blind">Blind</button></span>
   </div>
   <div class="transport">
-    <button class="primary" id="play">Play</button>
+    <button id="play" type="button" data-icon="play" data-toggle data-key="Space" aria-label="Play"></button>
     <span id="time" class="mono mut"></span>
     <span class="spacer"></span>
-    <button id="clearloop" class="hidden">clear loop</button>
+    <button id="clearloop" class="ds-button small hidden">Clear loop</button>
     <span class="mut">Song A tracks</span>
-    <span class="choice"><button id="kept-on" class="on">on</button><button id="kept-off">off</button></span>
+    <span class="choice ds-choice"><button id="kept-on" class="on">On</button><button id="kept-off">Off</button></span>
   </div>
   <div id="strip"><canvas id="roll" class="behind" aria-label="Piano roll of the version playing"></canvas><div id="strip-msg" class="mono mut">loading…</div><div id="loop" class="hidden"></div><div id="head" class="playhead" title="Drag to move the playhead"></div></div>
   <div class="row" id="override-row"></div>
   <div id="switches" class="grid"></div>
   <div id="versions" class="hidden"></div>
   <div class="grid">
-    <span class="label">Rating</span><span class="choice stars" id="stars"></span>
+    <span class="label">Rating</span><span class="choice ds-choice stars" id="stars"></span>
     <span class="label">Tags</span><span class="row" id="tags" style="margin:0"></span>
   </div>
-  <div class="row"><span id="progress" class="mut mono"></span><span class="spacer"></span><button id="reveal">reveal settings</button></div>
+  <div class="row"><span id="progress" class="mut mono"></span><span class="spacer"></span><button id="reveal" class="ds-button">Reveal settings</button></div>
   <details class="keys"><summary>Shortcuts</summary>
     <kbd>space</kbd> play · <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>-<kbd>9</kbd> switch version ·
     <kbd>shift</kbd>+<kbd>1</kbd>-<kbd>5</kbd> rate · <kbd>m</kbd> Song A tracks ·
@@ -97,7 +100,7 @@
     <span class="mut" id="song-hint">When a version of the part sounds right, make a cover of the whole song with it.</span></div>
   <div id="song-switches" class="grid"></div>
   <div class="transport">
-    <button class="primary" id="song-play">Play</button>
+    <button id="song-play" type="button" data-icon="play" data-toggle aria-label="Play the whole song"></button>
     <span id="song-time" class="mono mut"></span>
   </div>
   <div id="sections"><canvas id="song-roll" class="behind" aria-label="Piano roll of the whole song"></canvas><div id="sec-head" class="playhead"></div></div>
@@ -108,6 +111,10 @@
 import { setupRuns } from "./js/runs.js";
 import { makeSynth } from "./js/synth.js";
 import { seekable, timeAt, heardTime } from "./vendor/design/playhead.js";
+import { iconButton } from "./vendor/design/iconbutton.js";
+// Play is the design's icon button, as in the demo; it shows what is playing, set below
+const playBtn = iconButton(document.getElementById("play"));
+const songPlayBtn = iconButton(document.getElementById("song-play"));
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
@@ -143,7 +150,8 @@ async function load() {
   if (lab.busy) { $("status").textContent = "rebuilding…"; setTimeout(load, 1000); return; }
   if (lab.error) $("status").textContent = `rebuild failed: ${lab.error}`;
   ratings = lab.ratings || {};
-  $("title").textContent = `1 · Try the ${lab.part}`;
+  // "Try the verse", but "Try bars 1-5" for a part without a name
+  $("title").textContent = `1 · Try ${/^bars? \d/.test(lab.part) ? "" : "the "}${lab.part}`;
   document.title = `${lab.part} · Rearranged`;
   if (midiPart) {
     // the browser plays each version as one looping MIDI file through the synth
@@ -170,16 +178,18 @@ async function load() {
 }
 
 const NAMES = { bass: "Bass", guitar: "Guitar", lead: "Your lead guitar", drums: "Drums" };
-const LEVELS = { bass: { song: "yours", donor: "Song B style" }, guitar: { picked: "picked", strummed: "strummed" },
-                 lead: { true: "kept", false: "out" }, drums: { donor: "Song B groove", song: "yours", none: "none" } };
+const LEVELS = { bass: { song: "Yours", donor: "Song B style" }, guitar: { picked: "Picked", strummed: "Strummed" },
+                 lead: { true: "Kept", false: "Out" }, drums: { donor: "Song B groove", song: "Yours", none: "None" } };
+// controls are in sentence case: a label from the data starts with a capital on screen
+const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 let blind = false;
 
 function drawSwitches() {
   if (!lab.factors) return;
   const cur = lab.variants[current].settings;
   $("switches").innerHTML = Object.entries(lab.factors).map(([f, levels]) =>
-    `<span class="label">${esc(NAMES[f] || f)}</span><span class="choice">${levels.map((l) => `<button class="${String(cur[f]) === String(l) ? "on" : ""}"
-      data-f="${esc(f)}" data-l="${esc(String(l))}">${esc((LEVELS[f] || {})[String(l)] ?? String(l))}</button>`).join("")}</span>`).join("");
+    `<span class="label">${esc(NAMES[f] || f)}</span><span class="choice ds-choice">${levels.map((l) => `<button class="${String(cur[f]) === String(l) ? "on" : ""}"
+      data-f="${esc(f)}" data-l="${esc(String(l))}">${esc(cap((LEVELS[f] || {})[String(l)] ?? String(l)))}</button>`).join("")}</span>`).join("");
   $("switches").querySelectorAll("button").forEach((b) => b.onclick = () => {
     const want = { ...cur, [b.dataset.f]: b.dataset.l };
     const i = lab.variants.findIndex((v) => Object.keys(lab.factors).every((f) => String(v.settings[f]) === String(want[f])));
@@ -206,6 +216,7 @@ const readPalette = () => ({ acc: colorOf("--acc"), ground: colorOf("--ground-2"
                              mut: colorOf("--ink-mut"), ink: colorOf("--ink") });
 function refreshPalette() { palette = readPalette(); drawRoll(); drawSongRoll(); }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", refreshPalette);
+addEventListener("themechange", refreshPalette);   // the header's System / Paper / Night switch
 addEventListener("resize", () => { drawRoll(); drawSongRoll(); });
 
 async function loadRolls() {
@@ -331,13 +342,13 @@ function start(from) {
     });
     t0 = when; offset0 = from; playing = true;
   }
-  $("play").textContent = "Pause"; tick();
+  playBtn.setPressed(true); tick();
 }
 
 function pause() {
   offset0 = position();
   if (midiPart) { gen++; synth.stop(); } else stopAll();
-  playing = false; $("play").textContent = "Play";
+  playing = false; playBtn.setPressed(false);
 }
 
 function select(i) {
@@ -473,7 +484,7 @@ function drawRating() {
   const v = lab.variants[current], r = ratings[String(v.id)] || { stars: 0, tags: [] };
   $("stars").innerHTML = [1, 2, 3, 4, 5].map((s) => `<button class="${r.stars === s ? "on" : ""}" data-s="${s}">${s}</button>`).join("");
   $("stars").querySelectorAll("button").forEach((b) => b.onclick = () => rate(+b.dataset.s, r.tags));
-  $("tags").innerHTML = lab.tags.map((t) => `<button class="${r.tags.includes(t) ? "on" : ""}" data-t="${esc(t)}">${esc(t)}</button>`).join("");
+  $("tags").innerHTML = lab.tags.map((t) => `<button class="${r.tags.includes(t) ? "on" : ""}" data-t="${esc(t)}">${esc(cap(t))}</button>`).join("");
   $("tags").querySelectorAll("button").forEach((b) => b.onclick = () => {
     const tags = r.tags.includes(b.dataset.t) ? r.tags.filter((x) => x !== b.dataset.t) : [...r.tags, b.dataset.t];
     rate(r.stars || null, tags);
@@ -578,8 +589,8 @@ let wanted = null, songPoll = null, rendering = false;
 
 function drawSongSwitches() {
   $("song-switches").innerHTML = Object.entries(songOpts()).map(([k, opts]) =>
-    `<span class="label">${SONG_NAMES[k]}</span><span class="choice">${opts.map(([v, label]) =>
-      `<button class="${song[k] === v ? "on" : ""}" data-k="${k}" data-v="${esc(v)}"${SONG_TIPS[v] ? ` title="${esc(SONG_TIPS[v])}"` : ""}>${esc(label)}</button>`).join("")}</span>`).join("");
+    `<span class="label">${SONG_NAMES[k]}</span><span class="choice ds-choice">${opts.map(([v, label]) =>
+      `<button class="${song[k] === v ? "on" : ""}" data-k="${k}" data-v="${esc(v)}"${SONG_TIPS[v] ? ` title="${esc(SONG_TIPS[v])}"` : ""}>${esc(cap(label))}</button>`).join("")}</span>`).join("");
   $("song-switches").querySelectorAll("button").forEach((b) => b.onclick = () => {
     song[b.dataset.k] = b.dataset.v; drawSongSwitches(); drawSections(); renderSong();
   });
@@ -677,7 +688,7 @@ function tagsFor(s, p, i) {
 function noteText(s, p, i) {
   const rows = [];
   const row = (label, text, why) => rows.push(
-    `<span class="label">${label}</span><span${why ? ` title="${esc(why)}"` : ""}>${text}</span>`);
+    `<span class="label">${label}</span><span${why ? ` title="${esc(why)}"` : ""}>${cap(text)}</span>`);
   if (!p.has_chords) {
     row("Harmony", "none, so there is nothing to lay Song B's habits on");
     row("Drums", s.drums === "none" ? "off, the part stays quiet" : s.drums === "song" ? "your song's, on their own" : "Song B's groove, on its own");
@@ -752,10 +763,10 @@ seekable($("sections"), {
   },
   onCancel: () => { songAt = null; },
 });
-$("song-play").onclick = () => { synth.audio(); sp.paused ? sp.play() : sp.pause(); };
+$("song-play").onclick = () => { synth.audio(); sp.paused ? sp.play() : sp.pause(); songPlayBtn.setPressed(!sp.paused); };
 // one player at a time: the whole song stops the part, and the part stops the whole song
-sp.onplay = () => { $("song-play").textContent = "Pause"; };
-sp.onpause = () => { $("song-play").textContent = "Play"; };
+sp.onplay = () => { songPlayBtn.setPressed(true); };
+sp.onpause = () => { songPlayBtn.setPressed(false); };
 
 // the song's length is song-a's, fixed: a render's synth tail or a half-loaded file must not move it
 const songLength = () => songParts.length ? songParts[songParts.length - 1].end : 0;
@@ -800,7 +811,7 @@ async function initSong() {
     $("song-hint").textContent = "Showing the latest cover. Change a setting below to make another.";
     showSong(last);
   } else {
-    $("song-status").textContent = "not rendered yet";
+    $("song-status").textContent = "Not made yet";
   }
   drawSongSwitches(); drawSections(); pollSongs();
 }
@@ -809,7 +820,7 @@ async function initSong() {
 B.parts(lid).then((parts) => { songParts = parts; followPlayhead(); initSong(); })
   .catch((err) => { $("song-status").textContent = err.message; });
 
-$("play").onclick = () => { resume(); playing ? pause() : start(offset0); };
+$("play").onclick = () => { resume(); playing ? pause() : start(offset0); playBtn.setPressed(playing); };
 $("kept-on").onclick = () => setKept(true);
 $("kept-off").onclick = () => setKept(false);
 addEventListener("keydown", (e) => {

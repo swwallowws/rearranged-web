@@ -9,17 +9,27 @@
 <link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/design/tokens.css">
 <link rel="stylesheet" href="app.css">
+<script>
+  // before paint: ?theme= wins, then the mode saved in any of the products (they share it)
+  try { let t = new URLSearchParams(location.search).get("theme");
+        if (t !== "paper" && t !== "night") t = localStorage.getItem("swwallowws:mode");
+        if (t === "paper" || t === "night") document.documentElement.dataset.theme = t; } catch (_) {}
+</script>
 <style>
-  main { max-width: 860px; }
   section.step { border-top: var(--hairline); padding: 8px 0 20px; }
   section.step h2 span:first-child { color: var(--acc); margin-right: 8px; }
-  section.step h2 .sub { color: var(--ink-mut); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 8px; }
-  section.step:first-child { border-top: 0; padding-top: 0; }
+  section.step h2 { color: var(--ink); }
+  section.step h2 .sub { color: var(--ink-mut); font: 400 13px var(--font-sans); text-transform: none; letter-spacing: 0; margin-left: 8px; }
+  section.step:first-of-type { border-top: 0; padding-top: 0; }
   section.step.off { opacity: .45; pointer-events: none; }
   /* where a dragged file will land */
   section.step.drop { outline: 2px dashed var(--acc); outline-offset: 4px; }
   body.drop main { outline: 2px dashed var(--line); outline-offset: 8px; }
-  .drop-hint { margin: 6px 0 0; font-size: 12px; }
+  /* Song A and Song B: the design's drop zone around the file input, as in Coming Undone */
+  .step .ds-drop { position: relative; margin-top: 4px; padding: 18px 16px; }
+  .step .ds-drop.has-file .ds-drop-main { color: var(--acc); font: 600 13px/1.4 var(--font-mono); }
+  .drop-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .ds-drop:has(.drop-input:focus-visible) { outline: 2px solid var(--acc); outline-offset: 1px; }
   .roles { margin: 8px 0 0; font-size: 13px; }
   td select { padding: 3px 6px; }
   td.reason { color: var(--ink-mut); font-size: 13px; }
@@ -40,32 +50,32 @@
   .parts-strip .notes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .parts-strip .notes rect { fill: var(--ink-mut); opacity: .55; }
   .parts-strip .head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); pointer-events: none; }
-  .parts-names .row { display: flex; gap: 4px; margin: 0; }
+  .parts-names .row { display: flex; gap: 4px; align-items: center; margin: 0; }
   .parts-names .row input { flex: 1; min-width: 0; }
-  .parts-names .play { padding: 0 8px; font-size: 11px; }
   .parts-names { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; margin: 8px 0 12px; }
   .parts-names label { display: grid; gap: 2px; font-size: 12px; color: var(--ink-mut); }
-  .parts-names input { font: 13px/1.3 var(--font-sans); padding: 3px 6px; }
+  .parts-names input { font-size: 13px; padding: 2px 6px; }
 </style>
 </head>
 <body>
-<header class="bar">
-  <h1><a href="index.html">Rearranged<span>.</span></a></h1>
-  <span class="tagline">simply cover.</span>
-  <nav class="links"><a href="index.html">projects</a><a href="new.html" class="here">new project</a></nav>
+<header class="ds-header">
+  <a class="ds-wordmark" href="index.html">Rearranged<span class="dot">.</span></a>
+  <div class="modes end"></div>
 </header>
 <main>
+  <p class="back hidden" id="back"><a href="index.html">← Your projects</a></p>
   <section class="step" id="step-song">
-    <h2><span>1</span>Song A <span class="sub">the song to cover</span></h2>
-    <input type="file" id="song" accept=".mid,.midi">
-    <p class="drop-hint mut">Or drag files here.</p>
+    <h2><span>1</span>Song A <span class="sub">The song to cover</span></h2>
+    <label class="ds-drop" id="song-drop"><input type="file" id="song" accept=".mid,.midi" class="drop-input">
+      <span class="ds-drop-main" id="song-name">Drop Song A's MIDI file, or click to choose</span><span class="ds-drop-sub">.mid · drop both songs at once to fill A and B</span></label>
     <p class="roles mut hidden" id="song-roles"></p>
     <div class="wide"><table id="song-tracks" class="hidden"></table></div>
   </section>
 
   <section class="step" id="step-donor">
-    <h2><span>2</span>Song B <span class="sub">the habits to borrow</span></h2>
-    <input type="file" id="donor" accept=".mid,.midi">
+    <h2><span>2</span>Song B <span class="sub">The habits to borrow</span></h2>
+    <label class="ds-drop" id="donor-drop"><input type="file" id="donor" accept=".mid,.midi" class="drop-input">
+      <span class="ds-drop-main" id="donor-name">Drop Song B's MIDI file, or click to choose</span><span class="ds-drop-sub">.mid</span></label>
     <p class="roles mut hidden" id="donor-roles"></p>
     <div class="wide"><table id="donor-tracks" class="hidden"></table></div>
   </section>
@@ -77,8 +87,8 @@
     <div id="parts-names" class="parts-names"></div>
     <div class="grid">
       <span class="label">Parts file</span>
-      <span class="row" style="margin:0"><input type="file" id="parts" accept=".json"><button id="parts-clear" class="hidden">remove</button></span>
-      <span></span><span class="mut" id="parts-note">optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above</span>
+      <span class="row" style="margin:0"><input type="file" id="parts" accept=".json" class="ds-field"><button id="parts-clear" class="ds-button small hidden">Remove</button></span>
+      <span></span><span class="mut" id="parts-note">Optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above</span>
       <span class="label">Try first</span><span><select id="part"></select></span>
       <span class="label sf hidden">Sounds</span>
       <span class="row sf hidden" style="margin:0"><span id="sf-note" class="mut"></span><a href="#" id="sf-own" class="mut">use your own soundfont</a><input type="file" id="soundfont" accept=".sf2,.sf3" class="hidden"></span>
@@ -94,12 +104,15 @@
 <script type="module">
 import { labHref, setupRuns } from "./js/runs.js";
 import { makeSynth } from "./js/synth.js";
+import { iconSvg } from "./vendor/design/iconbutton.js";
 import initEngine, { roll as rollOf } from "./pkg/rearranged.js";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const ROLES = {song: ["chords", "bass", "lead", "drums", "ignore"], donor: ["style", "bass", "drums", "ignore"]};
 const picked = {song: null, donor: null};             // {file, tracks}
 const B = await setupRuns();
+// the way back shows only when there are projects to go back to
+B.labs().then((labs) => { if (labs.length) document.getElementById("back").classList.remove("hidden"); }).catch(() => {});
 // in the browser the lab plays through the built-in General MIDI sounds, fetched now so the
 // first play is quick; a soundfont of your own is optional and kept in this browser
 if (B.setSoundfont) {
@@ -109,7 +122,7 @@ if (B.setSoundfont) {
   const showSf = (sf) => {
     own = !sf.builtin;
     $("sf-note").className = "mut";
-    $("sf-note").textContent = own ? `${sf.name}, kept in this browser ·` : "built-in General MIDI ·";
+    $("sf-note").textContent = own ? `${sf.name}, kept in this browser ·` : "Built-in General MIDI ·";
     $("sf-own").textContent = own ? "use the built-in sounds" : "use your own soundfont";
   };
   showSf(await B.soundfontInfo());
@@ -162,8 +175,13 @@ document.addEventListener("click", (e) => {
   drawTracks(a.dataset.roles);
 });
 
+const DROP_TEXT = { song: "Drop Song A's MIDI file, or click to choose", donor: "Drop Song B's MIDI file, or click to choose" };
+const DROP_SUB = { song: ".mid · drop both songs at once to fill A and B", donor: ".mid" };
 async function choose(kind) {
   const file = $(kind).files[0];
+  $(`${kind}-name`).textContent = file ? file.name : DROP_TEXT[kind];
+  $(`${kind}-drop`).querySelector(".ds-drop-sub").textContent = file ? "drop another file, or click to change" : DROP_SUB[kind];
+  $(`${kind}-drop`).classList.toggle("has-file", !!file);
   picked[kind] = null;
   $(`${kind}-tracks`).classList.add("hidden");
   $(`${kind}-roles`).classList.add("hidden");
@@ -304,7 +322,8 @@ const songName = () => { const f = picked.song.file; return `song-a:${f.name}:${
 function playButtons() {
   document.querySelectorAll("#parts-names [data-play]").forEach((b) => {
     const on = +b.dataset.play === playing;
-    b.textContent = on ? "■" : "▶";
+    b.innerHTML = iconSvg(on ? "stop" : "play");          // the design's icons, as on every Play
+    b.setAttribute("aria-pressed", String(on));
     b.setAttribute("aria-label", on ? "stop" : `play ${nameOf(+b.dataset.play)}`);
   });
 }
@@ -351,8 +370,8 @@ function drawParts() {
       (l.shared ? `${esc(barsText(l.k - 1))} | ${esc(barsText(l.k))}: drag to move, double-click to join`
         : `${l.edge === "s" ? "start" : "end"} of ${esc(nameOf(l.k))}: drag to move`) + `"></span>`).join("");
   $("parts-names").innerHTML = ed.parts.map((p, k) =>
-    `<label>${esc(barsText(k))}<span class="row"><input data-k="${k}" value="${esc(p.name || "")}" placeholder="${esc(barsText(k))}">` +
-    (canPlay ? `<button type="button" class="play" data-play="${k}"></button>` : "") + `</span></label>`).join("");
+    `<label>${esc(barsText(k))}<span class="row"><input class="ds-field" data-k="${k}" value="${esc(p.name || "")}" placeholder="${esc(barsText(k))}">` +
+    (canPlay ? `<button type="button" class="iconbutton" data-size="s" data-play="${k}"></button>` : "") + `</span></label>`).join("");
   playButtons();
   $("part").innerHTML = ed.parts.map((p, k) =>
     `<option value="${k}">${esc(nameOf(k))} (${p.sSec.toFixed(0)}-${p.eSec.toFixed(0)} s)</option>`).join("");
@@ -458,7 +477,7 @@ async function refresh() {
     loadParts(got, fileParts, donor);
     drawNotes();
     $("parts-note").className = "mut";
-    $("parts-note").textContent = file ? `${got.parts.length} parts loaded from the file` : "optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above";
+    $("parts-note").textContent = file ? `${got.parts.length} parts loaded from the file` : "Optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above";
     drawParts();
   } catch (err) {
     $("parts-note").className = "err";

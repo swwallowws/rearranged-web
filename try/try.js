@@ -28,10 +28,10 @@ const getJSON = async (name) => {
 // ---- the habits a visitor can flip, in the order they are listed
 const HABITS = {
   bass: { name: "Bass", levels: { song: "Song A's", donor: "Song B's" } },
-  guitar: { name: "Guitar", levels: { picked: "picked", strummed: "strummed" } },
-  drums: { name: "Drums", levels: { donor: "Song B's", song: "Song A's", none: "none" } },
-  feel: { name: "Feel", levels: { straight: "full speed", half: "half-time" } },
-  lead: { name: "Lead", levels: { true: "Song A's kept", false: "out" } },
+  guitar: { name: "Guitar", levels: { picked: "Picked", strummed: "Strummed" } },
+  drums: { name: "Drums", levels: { donor: "Song B's", song: "Song A's", none: "None" } },
+  feel: { name: "Feel", levels: { straight: "Full speed", half: "Half-time" } },
+  lead: { name: "Lead", levels: { true: "Song A's kept", false: "Out" } },
 };
 // what one flip changes, said once, in plain words
 const CHANGED = {
@@ -399,7 +399,7 @@ function drawViews() {
 function drawHabits() {
   const rows = Object.keys(HABITS).filter((f) => lab.factors[f] && lab.factors[f].length > 1);
   $("habits").innerHTML = rows.map((f) => `<span class="label" id="h-${f}">${HABITS[f].name}</span>
-    <span class="seg" role="group" aria-labelledby="h-${f}">${lab.factors[f].map((l) => `<button type="button"
+    <span class="ds-choice" role="group" aria-labelledby="h-${f}">${lab.factors[f].map((l) => `<button type="button"
       data-f="${f}" data-l="${String(l)}" aria-pressed="${settings[f] === String(l)}">${HABITS[f].levels[String(l)] ?? String(l)}</button>`).join("")}</span>`).join("");
   $("habits").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => flip(b.dataset.f, b.dataset.l)));
   drawViews();
@@ -457,13 +457,13 @@ function checkRail() {
 
 const shell = demoShell($("demo"), {
   product: "Rearranged",
-  title: "Listen to a song in the style of another.",
+  title: "listen to a song in the style of another.",
   intro: "Song A covered in the style of Song B. Everything here was arranged ahead of time and plays from MIDI.",
   steps: [
-    { id: "part", label: "Press Play" },
-    { id: "songb", label: "Switch to Song B" },
-    { id: "switch", label: "Switch to Rearranged" },
-    { id: "habit", label: "Flip one habit at a time" },
+    { id: "part", label: "press play" },
+    { id: "songb", label: "switch to Song B" },
+    { id: "switch", label: "switch to Rearranged" },
+    { id: "habit", label: "flip one habit at a time" },
   ],
   // The rail's title stays a plain "Try it out!"; the way to the full studio
   // comes at the end of the tour, as in the YSAD demo.
@@ -560,12 +560,13 @@ const song = {
 };
 
 // one line per render; the lead is named only when the renders differ in it
-const leadOf = (s) => s.lead ? "lead kept" : s.lead_in && s.lead_in.length ? `lead only in the ${s.lead_in.join(", ")}` : "lead out";
+const leadOf = (s) => s.lead ? "Lead: kept" : s.lead_in && s.lead_in.length ? `Lead: only in the ${s.lead_in.join(", ")}` : "Lead: out";
+// one "Name: Value" per habit, both in sentence case, as on the switches
 function describe(s) {
   const feelIn = Object.entries(s.feel_in || {}).map(([p, f]) => `${p} ${f === "half" ? "half-time" : "full speed"}`);
-  const out = [`bass: ${HABITS.bass.levels[s.bass] ?? s.bass}`, `guitar: ${s.guitar}`,
-               `drums: ${HABITS.drums.levels[s.drums] ?? s.drums}`,
-               `feel: ${HABITS.feel.levels[s.feel] ?? s.feel}${feelIn.length ? ` (${feelIn.join(", ")})` : ""}`];
+  const out = [`Bass: ${HABITS.bass.levels[s.bass] ?? s.bass}`, `Guitar: ${HABITS.guitar.levels[s.guitar] ?? s.guitar}`,
+               `Drums: ${HABITS.drums.levels[s.drums] ?? s.drums}`,
+               `Feel: ${HABITS.feel.levels[s.feel] ?? s.feel}${feelIn.length ? ` (${feelIn.join(", ")})` : ""}`];
   if (!song.covers.every((c) => leadOf(c.settings) === leadOf(s))) out.push(leadOf(s));
   return out.join(" · ");
 }
@@ -574,7 +575,7 @@ function drawCovers() {
   const box = $("covers");
   if (!song.covers.length) { box.innerHTML = `<p class="mut small">No covers of the whole song were saved with this demo.</p>`; return; }
   song.pick = song.pick || song.covers[0].midi;
-  box.innerHTML = song.covers.map((c) => `<button type="button" data-m="${c.midi}" aria-pressed="${c.midi === song.pick}">${describe(c.settings)}</button>`).join("");
+  box.innerHTML = song.covers.map((c) => `<button type="button" class="ds-button" data-m="${c.midi}" aria-pressed="${c.midi === song.pick}">${describe(c.settings)}</button>`).join("");
   box.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     song.pick = b.dataset.m; drawCovers(); song.play();
   }));

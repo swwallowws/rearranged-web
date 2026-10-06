@@ -9,6 +9,12 @@
 <link rel="apple-touch-icon" href="favicons/apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/design/tokens.css">
 <link rel="stylesheet" href="app.css">
+<script>
+  // before paint: ?theme= wins, then the mode saved in any of the products (they share it)
+  try { let t = new URLSearchParams(location.search).get("theme");
+        if (t !== "paper" && t !== "night") t = localStorage.getItem("swwallowws:mode");
+        if (t === "paper" || t === "night") document.documentElement.dataset.theme = t; } catch (_) {}
+</script>
 <style>
   .lab { display: flex; gap: 16px; align-items: baseline; padding: 12px 0; border-bottom: var(--hairline);
          color: inherit; text-decoration: none; flex-wrap: wrap; }
@@ -17,17 +23,16 @@
 </style>
 </head>
 <body>
-<header class="bar">
-  <h1><a href="index.html">Rearranged<span>.</span></a></h1>
-  <span class="tagline">simply cover.</span>
-  <nav class="links"><a href="index.html" class="here">projects</a><a href="new.html">new project</a></nav>
+<header class="ds-header">
+  <a class="ds-wordmark" href="index.html">Rearranged<span class="dot">.</span></a>
+  <div class="modes end"></div>
 </header>
 <main>
   <div class="section-head" style="border-top:0;margin-top:0;padding-top:0">
-    <h2>Projects</h2><span class="spacer"></span><a class="btn primary" href="new.html">New project</a>
+    <h2>Your projects</h2><span class="spacer"></span><a class="ds-button primary" href="new.html">New project</a>
   </div>
   <p class="mut">Song A's harmony, played with Song B's arrangement habits.</p>
-  <div id="labs" class="mut">loading…</div>
+  <div id="labs" class="mut">Loading…</div>
 </main>
 <script type="module">
 import { labHref, setupRuns } from "./js/runs.js";
@@ -36,7 +41,8 @@ const box = document.getElementById("labs");
 try {
   const B = await setupRuns();
   const labs = await B.labs();
-  if (!labs.length) box.textContent = "No projects yet.";
+  // nothing to list yet: start a new project straight away
+  if (!labs.length) location.replace("new.html");
   else {
     box.classList.remove("mut");
     box.innerHTML = labs.map((l) =>
