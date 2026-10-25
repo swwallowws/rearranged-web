@@ -139,7 +139,7 @@ export function browserBackend() {
       const lab = r.lab;
       const variants = lab.variants.map((v) => ({ id: v.id, label: v.label, gain_db: v.gain_db, arr: v.arr, kept: v.kept,
         settings: Object.fromEntries(Object.keys(lab.factors).map((f) => [f, v.settings[f]])) }));
-      return { id, part: lab.part, part_start: lab.part_start, part_end: lab.part_end, segments: lab.segments,
+      return { id, part: lab.part, part_index: r.part, part_start: lab.part_start, part_end: lab.part_end, segments: lab.segments,
                variants: variants.sort((a, b) => a.label.localeCompare(b.label)), factors: lab.factors,
                ratings: r.ratings || {}, tags: TAGS, busy: building.has(id) && building.get(id) === null,
                error: r.error || null };
@@ -165,6 +165,20 @@ export function browserBackend() {
       await store.put("labs", r);
       return { ok: true };
     },
+    // A rating for a part as some settings play it ({key: 1-5}, the key naming the part and the
+    // settings); 0 or null clears it.
+    async configRatings(id) {
+      return (await record(id)).configRatings || {};
+    },
+    async rateConfig(id, key, stars) {
+      const r = await record(id);
+      if (stars && !(stars >= 1 && stars <= 5)) throw new Error("a rating is 1 to 5");
+      const all = { ...(r.configRatings || {}) };
+      if (stars) all[key] = +stars; else delete all[key];
+      r.configRatings = all;
+      await store.put("labs", r);
+      return all;
+    },
     async reveal(id) {
       const r = await record(id);
       await loadEngine();
@@ -176,7 +190,30 @@ export function browserBackend() {
     async covers(id) {
       const r = await record(id);
       return Object.entries(r.covers || {}).sort((a, b) => b[1].at - a[1].at)
-        .map(([s, meta]) => ({ stem: s, settings: meta.settings, status: "done", midi: `${s}.mid` }));
+        .map(([s, meta]) => ({ stem: s, settings: meta.settings, status: "done", midi: `${s}.mid`, kept: !!meta.kept,
+                               keptAt: meta.keptAt || meta.at, name: meta.name || "" }));
+    },
+    // Keeping a cover puts it on the project's list, under a name; forgetting takes it off (the
+    // file stays, so the same settings come back at once).
+    async keepCover(id, stem, name) {
+      const r = await record(id);
+      if (!r.covers?.[stem]) throw new Error("no such cover");
+      // the list keeps the order covers were kept in; playing one again doesn't move it
+      r.covers[stem] = { ...r.covers[stem], kept: true, keptAt: Date.now() / 1000,
+                         name: String(name || "").trim() || r.covers[stem].name || "" };
+      await store.put("labs", r);
+    },
+    async renameCover(id, stem, name) {
+      const r = await record(id);
+      if (!r.covers?.[stem]) throw new Error("no such cover");
+      r.covers[stem] = { ...r.covers[stem], name: String(name || "").trim() };
+      await store.put("labs", r);
+    },
+    async forgetCover(id, stem) {
+      const r = await record(id);
+      if (!r.covers?.[stem]) return;
+      r.covers[stem] = { ...r.covers[stem], kept: false };
+      await store.put("labs", r);
     },
     async cover(id, body) {
       const r = await record(id);
@@ -196,9 +233,17 @@ export function browserBackend() {
                          drums: choices.drums[0], feel: choices.feel[0], level: +(body.level ?? 64) || 64,
                          lead_in: String(body.lead_in || "").split(",").map((s) => s.trim()).filter(Boolean).sort(),
                          feel_in: sorted(feelIn), overrides: r.overrides || {} };
+      // parts with their own settings ({part name: {bass, guitar, lead, drums, feel}}): only when
+      // there are some, so a cover made without them keeps its name
+      const own = Object.entries(body.parts || {}).filter(([, p]) => p && Object.keys(p).length);
+      if (own.length) settings.parts = sorted(Object.fromEntries(own.map(([n, p]) => [n, sorted(p)])));
       const name = "cover" + hashOf(JSON.stringify(sorted(settings)));
       const done = { stem: name, status: "done", midi: `${name}.mid` };
-      if (r.covers?.[name] && (await store.get("files", `${id}/${name}.mid`))) return done;
+      if (r.covers?.[name] && (await store.get("files", `${id}/${name}.mid`))) {
+        r.covers[name] = { ...r.covers[name], at: Date.now() / 1000 };   // the newest is the one used last
+        await store.put("labs", r);
+        return done;
+      }
       const midi = (await session(r)).renderSong(JSON.stringify(settings));
       await store.put("files", midi, `${id}/${name}.mid`);
       r.covers = { ...(r.covers || {}), [name]: { settings, at: Date.now() / 1000 } };
@@ -224,6 +269,32 @@ export function browserBackend() {
           await store.put("labs", r);
           building.delete(id);
         }
+      })();
+      return { started: true };
+    },
+    // Try another part: the versions are rebuilt for it, with the same chord fixes. Ratings belong
+    // to a part's versions, so each part keeps its own (as the local server does).
+    async setPart(id, part) {
+      await loadEngine();
+      const r = await record(id);
+      const n = JSON.parse((await session(r)).parts()).length;
+      if (!(part >= 0 && part < n)) throw new Error(`there is no part ${+part + 1}`);
+      if (+part === r.part) return { started: false };
+      if (building.has(id) && building.get(id) === null) throw new Error("still rebuilding");
+      building.set(id, null);
+      (async () => {
+        try {
+          const old = r.part;
+          r.part = +part;
+          r.lab = await build(r);
+          r.ratingsByPart = { ...(r.ratingsByPart || {}), [old]: r.ratings || {} };
+          r.ratings = r.ratingsByPart[r.part] || {};
+          r.error = null;
+        } catch (e) {
+          r.error = e.message || String(e);
+        }
+        await store.put("labs", r);
+        building.delete(id);
       })();
       return { started: true };
     },

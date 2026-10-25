@@ -47,10 +47,13 @@
 .habits {
   display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: var(--space) calc(var(--space) * 1.5);
   align-items: center; padding: calc(var(--space) * 1.5) calc(var(--space) * 1.5) 0;
-  transition: opacity 900ms ease;
 }
 .habits .label { font-size: 13px; color: var(--ink-mut); }
-.habits.off { opacity: .45; }
+/* the habits sit above the DEMO mark (data-demoshell-nomark), on the pane's own ground, and rest
+   dimmed while Song A or Song B plays: they only change the rearranged version */
+.habits[data-demoshell-nomark] { background-color: var(--ground-2); }
+/* the controls fade, not the panel: its ground stays solid over the mark */
+.habits.off > * { opacity: .45; }
 .changed { margin: 0; padding: var(--space) calc(var(--space) * 1.5) calc(var(--space) * 1.5); min-height: 3.2em; color: var(--ink-mut); }
 .changed b { color: var(--ink); font-weight: 600; }
 /* the two songs, named under the version switch */

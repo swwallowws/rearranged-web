@@ -9,6 +9,40 @@ const VENDOR = new URL("../vendor/design/sound/spessasynth/", import.meta.url);
 const RAMP = 0.03;
 const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
+// Voice sounds (choir aahs, voice oohs, synth voice, voice lead, space voice pad) play as a flute:
+// a song's sung melody written for a voice patch sounds better on a flute through the built-in sounds.
+export const VOICES = new Set([52, 53, 54, 85, 91]);
+export const VOICE_SOUND = 73;                   // Flute
+/** A copy of a Standard MIDI File with every program change to a voice sound set to VOICE_SOUND. */
+export function voicesAsFlute(binary) {
+  const b = new Uint8Array(binary.slice(0));
+  const u32 = (i) => (b[i] << 24 | b[i + 1] << 16 | b[i + 2] << 8 | b[i + 3]) >>> 0;
+  if (b.length < 14 || u32(0) !== 0x4d546864) return b.buffer;          // not a MIDI file: as it is
+  let at = 8 + u32(4);
+  const tracks = b[10] << 8 | b[11];
+  for (let t = 0; t < tracks && at + 8 <= b.length; t++) {
+    const end = Math.min(b.length, at + 8 + u32(at + 4));
+    let i = at + 8, status = 0;
+    const vlq = () => { let v = 0, c; do { c = b[i++]; v = (v << 7) | (c & 0x7f); } while (c & 0x80 && i < end); return v; };
+    while (i < end) {
+      vlq();
+      let s = b[i];
+      if (s & 0x80) i++; else s = status;                                  // running status
+      if (s === 0xff) { i++; const len = vlq(); i += len; }                // vlq() moves i: read it first
+      else if (s === 0xf0 || s === 0xf7) { const len = vlq(); i += len; }
+      else {
+        status = s;
+        const kind = s & 0xf0;
+        if (kind === 0xc0) { if ((s & 0x0f) !== 9 && VOICES.has(b[i])) b[i] = VOICE_SOUND; i += 1; }
+        else if (kind === 0xd0) i += 1;
+        else i += 2;
+      }
+    }
+    at = end;
+  }
+  return b.buffer;
+}
+
 export function makeSynth(getSoundfont) {
   return {
     ctx: null, synth: null, seq: null, out: null, meter: null, ready: null, loaded: "", mode: "", running: false,
@@ -63,7 +97,7 @@ export function makeSynth(getSoundfont) {
       }
       this.release();
       if (this.loaded !== name) {
-        this.seq.loadNewSongList([{ binary: binary.slice(0), fileName: name }]);
+        this.seq.loadNewSongList([{ binary: voicesAsFlute(binary), fileName: name }]);
         this.loaded = name;
       }
       this.seq.loopCount = loop ? Infinity : 0;

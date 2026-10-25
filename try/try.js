@@ -35,13 +35,12 @@ const HABITS = {
 };
 // what one flip changes, said once, in plain words
 const CHANGED = {
-  bass: { song: "Song A's own line comes back.", donor: "Song B's lines, walked onto Song A's roots." },
-  guitar: { picked: "Song B's picking, each note moved onto Song A's chord tones.",
-            strummed: "Song B's strum rhythm, struck as Song A's full chords." },
-  drums: { donor: "Song B's drum groove.", song: "Song A's own drums.", none: "no drums: the guitars and bass stand alone." },
-  feel: { straight: "full speed: Song B's bars laid over Song A's one for one.",
-          half: "half-time: each Song B bar stretched over two of Song A's." },
-  lead: { true: "Song A's lead guitar stays in.", false: "Song A's lead guitar drops out." },
+  bass: { song: "Song A's own bass line.", donor: "plays like Song B's bass, on Song A's chords." },
+  guitar: { picked: "picked like Song B's guitar, on Song A's chords.",
+            strummed: "strummed in Song B's rhythm, on Song A's chords." },
+  drums: { donor: "Song B's drum beat.", song: "Song A's own drums.", none: "no drums." },
+  feel: { straight: "full speed.", half: "half-time: Song B's patterns at half the pace." },
+  lead: { true: "Song A's lead guitar plays.", false: "no lead guitar." },
 };
 // the rearranged version the switch lands on first (the approved cover): song B's bass,
 // picking and drums on song A's chords, half-time
@@ -392,16 +391,36 @@ function drawChords() {
 function drawViews() {
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
   $("habits").classList.toggle("off", view !== "rearranged");
-  $("habits").querySelectorAll("button").forEach((b) => { b.disabled = view !== "rearranged"; });
+  $("habits").querySelectorAll("button, input").forEach((b) => { b.disabled = view !== "rearranged" || b.hasAttribute("data-stopped"); });
   $("chords").hidden = view === "songb";            // the chords are Song A's
+}
+
+// Song A's or Song B's: plain letters either side of a switch (the design's .ds-switch), the words
+// kept as tooltip and spoken name. Where "none" is a level too (no drums), the row's label is a
+// check that stops the part; the switch keeps its side for when it comes back.
+const lastSide = {};
+function abRow(f) {
+  const h = HABITS[f], levels = lab.factors[f].map(String), stopped = settings[f] === "none";
+  if (!stopped) lastSide[f] = settings[f];
+  const side = lastSide[f] || "donor", other = side === "song" ? "donor" : "song", dis = stopped ? " data-stopped" : "";
+  const end = (l, letter) => `<button type="button" data-f="${f}" data-l="${l}" aria-pressed="${side === l}"
+    title="${h.levels[l]}" aria-label="${h.name}: ${h.levels[l]}"${dis}>${letter}</button>`;
+  const head = levels.includes("none")
+    ? `<label class="ds-check label" id="h-${f}"><input type="checkbox" data-f="${f}" data-stop${stopped ? "" : " checked"}><span>${h.name}</span></label>`
+    : `<span class="label" id="h-${f}">${h.name}</span>`;
+  return `${head}<span class="ds-switch" role="group" aria-labelledby="h-${f}">${end("song", "A")}<button type="button" class="ds-switch-track"
+    data-f="${f}" data-l="${other}" title="${h.levels[other]}" aria-label="${h.name}: ${h.levels[other]}"${dis}></button>${end("donor", "B")}</span>`;
 }
 
 function drawHabits() {
   const rows = Object.keys(HABITS).filter((f) => lab.factors[f] && lab.factors[f].length > 1);
-  $("habits").innerHTML = rows.map((f) => `<span class="label" id="h-${f}">${HABITS[f].name}</span>
+  const isAB = (f) => ["song", "donor"].every((l) => lab.factors[f].map(String).includes(l));
+  $("habits").innerHTML = rows.map((f) => isAB(f) ? abRow(f) : `<span class="label" id="h-${f}">${HABITS[f].name}</span>
     <span class="ds-choice" role="group" aria-labelledby="h-${f}">${lab.factors[f].map((l) => `<button type="button"
       data-f="${f}" data-l="${String(l)}" aria-pressed="${settings[f] === String(l)}">${HABITS[f].levels[String(l)] ?? String(l)}</button>`).join("")}</span>`).join("");
   $("habits").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => flip(b.dataset.f, b.dataset.l)));
+  $("habits").querySelectorAll("input[data-stop]").forEach((c) => c.addEventListener("change", () =>
+    flip(c.dataset.f, c.checked ? lastSide[c.dataset.f] || "donor" : "none")));
   drawViews();
 }
 
@@ -412,11 +431,10 @@ function barsOf(p) {
   return p.name.trim().toLowerCase() === text ? "" : text;
 }
 
-// the pane's header names what loops: song A's part (which the versions share) or song B's
+// the pane's header names what loops: "Song A intro", "Song B intro", "Rearranged intro"
 function partHeader() {
-  const where = barsOf(song.parts.find((p) => p.name === lab.part));
-  const name = view === "songb" ? `Song B · ${loops.donor.part}` : [lab.part, where].filter(Boolean).join(" · ");
-  $("part-name").textContent = `${name} · ${fmt(duration())} loop`;
+  const who = view === "songb" ? "Song B" : view === "original" ? "Song A" : "Rearranged";
+  $("part-name").textContent = `${who} ${view === "songb" ? loops.donor.part : lab.part}`;
   $("time").textContent = `${fmt(position())} / ${fmt(duration())}`;
 }
 
@@ -429,9 +447,7 @@ function setView(v) {
   if (playing) t0 = ctx.currentTime;
   fromTop = true;
   drawViews(); drawChords(); partHeader();
-  status(v === "original" ? "Song A as written."
-    : v === "songb" ? `Song B as written: ${loops.donor.part}, the band Song A borrows from.`
-    : "Song B's bass, picking and drums on Song A's chords, at half-time.");
+  status(v === "rearranged" ? "Song B's bass, picking and drums on Song A's chords, at half-time." : "");
   retarget();
 }
 
@@ -458,7 +474,7 @@ function checkRail() {
 const shell = demoShell($("demo"), {
   product: "Rearranged",
   title: "listen to a song in the style of another.",
-  intro: "Song A covered in the style of Song B. Everything here was arranged ahead of time and plays from MIDI.",
+  intro: "Song A covered in the style of Song B.",
   steps: [
     { id: "part", label: "press play" },
     { id: "songb", label: "switch to Song B" },

@@ -17,7 +17,6 @@
 </script>
 <style>
   section.step { border-top: var(--hairline); padding: 8px 0 20px; }
-  section.step h2 span:first-child { color: var(--acc); margin-right: 8px; }
   section.step h2 { color: var(--ink); }
   section.step h2 .sub { color: var(--ink-mut); font: 400 13px var(--font-sans); text-transform: none; letter-spacing: 0; margin-left: 8px; }
   section.step:first-of-type { border-top: 0; padding-top: 0; }
@@ -27,34 +26,59 @@
   body.drop main { outline: 2px dashed var(--line); outline-offset: 8px; }
   /* Song A and Song B: the design's drop zone around the file input, as in Coming Undone */
   .step .ds-drop { position: relative; margin-top: 4px; padding: 18px 16px; }
+  .step .ds-drop-sub:empty { display: none; }
   .step .ds-drop.has-file .ds-drop-main { color: var(--acc); font: 600 13px/1.4 var(--font-mono); }
   .drop-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
   .ds-drop:has(.drop-input:focus-visible) { outline: 2px solid var(--acc); outline-offset: 1px; }
-  .roles { margin: 8px 0 0; font-size: 13px; }
+  /* only what the guess isn't sure of, one question a line; "tracks" opens the table */
+  .roles { display: grid; gap: 6px; justify-items: start; margin: 8px 0 0; font-size: 13px; }
+  .roles .ask { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-mut); }
+  .roles .ask b { color: var(--ink); font-weight: 600; }
+  .roles .ask select { font-size: 13px; padding: 2px 26px 2px 6px; }
   td select { padding: 3px 6px; }
   td.reason { color: var(--ink-mut); font-size: 13px; }
   #progress { border-left: 2px solid var(--acc); padding: 4px 0 4px 12px; margin: 12px 0; }
   /* The parts editor: Song A as a strip, one tick per bar, a line at each part's start. */
-  .parts-strip { position: relative; height: 72px; margin: 8px 0; border: var(--hairline); border-radius: var(--radius);
-                 background: var(--ground-2); cursor: copy; touch-action: none; user-select: none; overflow: hidden; }
+  /* the player scrolls sideways inside its frame; the canvas is as wide as the zoom makes it */
+  .parts-view { margin: 8px 0; border: var(--hairline); border-radius: var(--radius); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+  .parts-canvas { width: 100%; }
+  /* the bar numbers: drag them down to zoom in, up to zoom out, as on a clip in Ableton Live */
+  .parts-ruler { position: relative; height: 20px; border-bottom: var(--hairline); background: var(--ground); cursor: zoom-in; touch-action: none; user-select: none; }
+  .parts-ruler .bar-no { position: absolute; top: 0; bottom: 0; padding: 3px 0 0 3px; border-left: 1px solid var(--line); font: 10px/1 var(--font-mono); color: var(--ink-mut); white-space: nowrap; pointer-events: none; }
+  .parts-strip { position: relative; height: 168px;
+                 background: var(--ground-2); cursor: default; touch-action: none; user-select: none; overflow: hidden; }
   .parts-strip .seg { position: absolute; top: 0; bottom: 0; overflow: hidden; }
   .parts-strip .seg:nth-child(even of .seg) { background: color-mix(in srgb, var(--acc) 10%, transparent); }
   .parts-strip .tick { position: absolute; top: 0; height: 8px; width: 1px; background: var(--line); pointer-events: none; }
-  .parts-strip .cut { position: absolute; top: 0; bottom: 0; width: 13px; margin-left: -6px; cursor: ew-resize; }
+  .parts-strip .cut { position: absolute; top: 0; bottom: 0; z-index: 3; width: 13px; margin-left: -6px; cursor: ew-resize; }   /* over the playhead where they meet */
   .parts-strip .cut::after { content: ""; position: absolute; top: 0; bottom: 0; left: 6px; width: 2px; background: var(--acc); }
   .parts-strip .cut:hover::after, .parts-strip .cut.drag::after { width: 3px; left: 5px; }
+  /* a part's name plays it from its first bar */
   .parts-strip .seg-label { position: absolute; bottom: 4px; left: 4px; padding: 1px 3px; background: var(--ground-2);
-                            font: 11px/1 var(--font-mono); color: var(--ink-mut);
-                            white-space: nowrap; pointer-events: none; }
+                            font: 11px/1 var(--font-mono); color: var(--ink-mut); white-space: nowrap; cursor: pointer; }
+  .parts-strip .seg-label:hover { color: var(--acc); }
   /* Song A's notes behind the parts (drums left out), and the playhead while a part plays */
   .parts-strip .notes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .parts-strip .notes rect { fill: var(--ink-mut); opacity: .55; }
-  .parts-strip .head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); pointer-events: none; }
-  .parts-names .row { display: flex; gap: 4px; align-items: center; margin: 0; }
-  .parts-names .row input { flex: 1; min-width: 0; }
-  .parts-names { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; margin: 8px 0 12px; }
-  .parts-names label { display: grid; gap: 2px; font-size: 12px; color: var(--ink-mut); }
-  .parts-names input { font-size: 13px; padding: 2px 6px; }
+  /* the playhead: always there once the song is in, above the lines, with a wider band to grab */
+  .parts-strip .head { position: absolute; top: 0; bottom: 0; z-index: 2; width: 2px; margin-left: -1px; background: var(--ink); cursor: ew-resize; touch-action: none; }
+  .parts-strip .head::before { content: ""; position: absolute; top: 0; bottom: 0; left: -6px; right: -6px; }
+  /* the selected part: picked on the strip, edited in the row under it */
+  .parts-strip .seg.sel { background: color-mix(in srgb, var(--acc) 22%, transparent); }
+  .parts-strip .seg.sel .seg-label { color: var(--acc); }
+  .part-edit { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; font-size: 13px; color: var(--ink-mut); }
+  .part-edit input { font-size: 13px; padding: 3px 6px; }
+  .part-edit input[type=text] { width: 14em; }
+  .part-edit input[type=number] { width: 4.5em; font-family: var(--font-mono); }
+  /* how the strip works, only while the pointer is on it */
+  .parts-hint { margin: 0; min-height: 1.4em; visibility: hidden; }
+  #step-parts:has(.parts-view:hover) .parts-hint { visibility: visible; }
+  .parts-file { display: flex; gap: 6px; align-items: center; margin: 8px 0 0; }
+  /* the download icon at the end of the part's row, its words at the end of the file line under it */
+  .edit-row { display: flex; gap: 8px; align-items: center; }
+  .edit-row .part-edit { flex: 1; margin: 4px 0 8px; }
+  .save-label { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: var(--ink-mut); white-space: nowrap; cursor: pointer; }
+  .save-label:hover { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -65,38 +89,38 @@
 <main>
   <p class="back hidden" id="back"><a href="index.html">← Your projects</a></p>
   <section class="step" id="step-song">
-    <h2><span>1</span>Song A <span class="sub">The song to cover</span></h2>
+    <h2>Song to cover</h2>
     <label class="ds-drop" id="song-drop"><input type="file" id="song" accept=".mid,.midi" class="drop-input">
-      <span class="ds-drop-main" id="song-name">Drop Song A's MIDI file, or click to choose</span><span class="ds-drop-sub">.mid · drop both songs at once to fill A and B</span></label>
+      <span class="ds-drop-main" id="song-name">Drop a MIDI file, or click to choose</span><span class="ds-drop-sub"></span></label>
     <p class="roles mut hidden" id="song-roles"></p>
     <div class="wide"><table id="song-tracks" class="hidden"></table></div>
   </section>
 
   <section class="step" id="step-donor">
-    <h2><span>2</span>Song B <span class="sub">The habits to borrow</span></h2>
+    <h2>Style to borrow</h2>
     <label class="ds-drop" id="donor-drop"><input type="file" id="donor" accept=".mid,.midi" class="drop-input">
-      <span class="ds-drop-main" id="donor-name">Drop Song B's MIDI file, or click to choose</span><span class="ds-drop-sub">.mid</span></label>
+      <span class="ds-drop-main" id="donor-name">Drop a MIDI file, or click to choose</span><span class="ds-drop-sub"></span></label>
     <p class="roles mut hidden" id="donor-roles"></p>
     <div class="wide"><table id="donor-tracks" class="hidden"></table></div>
   </section>
 
   <section class="step off" id="step-parts">
-    <h2><span>3</span>Parts <span class="sub">Song A's verses, choruses and the rest</span></h2>
-    <p class="mut small" id="parts-help">Drag a line to move it, click inside a part to cut it there, double-click a line between two parts to join them. Every line snaps to a bar.</p>
-    <div id="parts-strip" class="parts-strip" aria-label="Song A's parts, bar by bar"><svg id="parts-notes" class="notes" preserveAspectRatio="none" aria-hidden="true"></svg><div id="parts-marks"></div><span id="parts-head" class="head hidden"></span></div>
-    <div id="parts-names" class="parts-names"></div>
-    <div class="grid">
-      <span class="label">Parts file</span>
-      <span class="row" style="margin:0"><input type="file" id="parts" accept=".json" class="ds-field"><button id="parts-clear" class="ds-button small hidden">Remove</button></span>
-      <span></span><span class="mut" id="parts-note">Optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above</span>
-      <span class="label">Try first</span><span><select id="part"></select></span>
-      <span class="label sf hidden">Sounds</span>
-      <span class="row sf hidden" style="margin:0"><span id="sf-note" class="mut"></span><a href="#" id="sf-own" class="mut">use your own soundfont</a><input type="file" id="soundfont" accept=".sf2,.sf3" class="hidden"></span>
-    </div>
+    <h2>Parts</h2>
+    <p class="mut small">Your song's sections, like an intro, a verse or a solo. Mark them to fine-tune each part on its own or keep them as they are.</p>
+    <div id="parts-view" class="parts-view"><div id="parts-canvas" class="parts-canvas">
+      <div id="parts-ruler" class="parts-ruler" title="Drag down to zoom in, up to zoom out; double-click to see the whole song"></div>
+      <div id="parts-strip" class="parts-strip" aria-label="The song's parts, bar by bar"><svg id="parts-notes" class="notes" preserveAspectRatio="none" aria-hidden="true"></svg><div id="parts-marks"></div><span id="parts-head" class="head hidden"></span></div>
+    </div></div>
+    <p class="mut small parts-hint" id="parts-help">Click or drag to move the playhead · click a part's name to hear it from its start · double-click to add a line · double-click a line to remove it · drag a line to move it · drag the bar numbers down or up, or pinch, to zoom</p>
+    <div class="edit-row"><div id="part-edit" class="part-edit"></div><button type="button" id="parts-save" data-icon="download" data-size="s" aria-label="Download these parts as parts.json"></button></div>
+    <p class="mut small parts-file"><span id="parts-note">Have a parts.json? Drop it here, or</span> <a href="#" id="parts-pick">choose one</a>
+      <button type="button" id="parts-clear" class="hidden" data-icon="close" data-size="s" aria-label="Forget the parts file"></button>
+      <span class="spacer"></span><button type="button" class="save-label" id="parts-save-label" tabindex="-1">download parts.json</button></p>
+    <input type="file" id="parts" accept=".json" class="hidden">
   </section>
 
   <section class="step off" id="step-go">
-    <h2><span>4</span>Build</h2>
+    <h2>Build</h2>
     <div class="row"><button class="primary" id="go">Create project</button><span id="go-note" class="err"></span></div>
     <div id="progress" class="hidden mono"></div>
   </section>
@@ -104,7 +128,8 @@
 <script type="module">
 import { labHref, setupRuns } from "./js/runs.js";
 import { makeSynth } from "./js/synth.js";
-import { iconSvg } from "./vendor/design/iconbutton.js";
+import { iconButton, iconSvg } from "./vendor/design/iconbutton.js";
+import { clampTime } from "./vendor/design/playhead.js";
 import initEngine, { roll as rollOf } from "./pkg/rearranged.js";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
@@ -113,42 +138,28 @@ const picked = {song: null, donor: null};             // {file, tracks}
 const B = await setupRuns();
 // the way back shows only when there are projects to go back to
 B.labs().then((labs) => { if (labs.length) document.getElementById("back").classList.remove("hidden"); }).catch(() => {});
-// in the browser the lab plays through the built-in General MIDI sounds, fetched now so the
-// first play is quick; a soundfont of your own is optional and kept in this browser
-if (B.setSoundfont) {
-  B.prefetchSoundfont();
-  document.querySelectorAll(".sf").forEach((e) => e.classList.remove("hidden"));
-  let own = false;
-  const showSf = (sf) => {
-    own = !sf.builtin;
-    $("sf-note").className = "mut";
-    $("sf-note").textContent = own ? `${sf.name}, kept in this browser ·` : "Built-in General MIDI ·";
-    $("sf-own").textContent = own ? "use the built-in sounds" : "use your own soundfont";
-  };
-  showSf(await B.soundfontInfo());
-  $("sf-own").onclick = async (e) => {
-    e.preventDefault();
-    if (own) showSf(await B.clearSoundfont());
-    else $("soundfont").click();
-  };
-  $("soundfont").onchange = async () => {
-    const f = $("soundfont").files[0];
-    if (!f) return;
-    try { showSf(await B.setSoundfont(f)); } catch (err) { $("sf-note").className = "err"; $("sf-note").textContent = err.message; }
-    $("soundfont").value = "";
-  };
-}
+// in the browser the project plays through the built-in General MIDI sounds, fetched now so the
+// first play is quick (a soundfont of your own is picked on the project page)
+if (B.prefetchSoundfont) B.prefetchSoundfont();
 
-// Roles are guessed from each track; one line says what was picked, and the table to change
-// it opens on "change" (or by itself when the build needs a role fixed).
+// Roles are guessed from each track. A guess the engine is sure of (a name, the drum flag, the
+// sound) says nothing; one from the notes alone asks, one line per track, with the guess picked.
+// "tracks" opens the whole table (it also opens by itself when the build needs a role fixed).
 const shown = {song: false, donor: false};
+const ROLE_WORDS = {chords: "chords", bass: "the bass", lead: "the lead", drums: "the drums", style: "the style", ignore: "not used"};
+const ASK_AT_MOST = 4;
 function drawTracks(kind) {
   const t = $(`${kind}-tracks`), tracks = picked[kind].tracks;
-  const used = tracks.filter((x) => x.role !== "ignore"), left = tracks.length - used.length;
+  const ask = tracks.filter((x) => !x.sure || x.asked);
   const r = $(`${kind}-roles`);
   r.classList.remove("hidden");
-  r.innerHTML = "Guessed: " + (used.map((x) => `${esc(x.role)} from ${esc(x.name || `track ${x.index + 1}`)}`).join(" · ") || "none") +
-    (left ? ` · ${left} left out` : "") + ` · <a href="#" data-roles="${kind}">${shown[kind] ? "done" : "change"}</a>`;
+  r.innerHTML = ask.slice(0, ASK_AT_MOST).map((x) => {
+    const i = tracks.indexOf(x);
+    return `<span class="ask"><b>${esc(x.name)}</b> sounds like <select data-kind="${kind}" data-i="${i}" aria-label="What ${esc(x.name)} plays">` +
+      ROLES[kind].map((ro) => `<option value="${ro}"${ro === x.role ? " selected" : ""}>${ROLE_WORDS[ro]}</option>`).join("") + "</select></span>";
+  }).join("") +
+    `<span class="ask-more">${ask.length > ASK_AT_MOST ? `and ${ask.length - ASK_AT_MOST} more · ` : ""}` +
+    `<a href="#" data-roles="${kind}">${shown[kind] ? "done" : "tracks"}</a></span>`;
   t.classList.toggle("hidden", !shown[kind]);
   t.innerHTML = "<tr><th>#</th><th>track</th><th>notes</th><th>role</th><th>why</th></tr>" +
     picked[kind].tracks.map((x, i) =>
@@ -164,6 +175,8 @@ document.addEventListener("change", (e) => {
   const x = picked[s.dataset.kind].tracks[+s.dataset.i];
   x.role = s.value;
   x.reason = "you picked this";
+  if (!x.sure) x.asked = true;            // an answered question stays where it was
+  x.sure = true;
   drawTracks(s.dataset.kind);
   check();
 });
@@ -175,8 +188,8 @@ document.addEventListener("click", (e) => {
   drawTracks(a.dataset.roles);
 });
 
-const DROP_TEXT = { song: "Drop Song A's MIDI file, or click to choose", donor: "Drop Song B's MIDI file, or click to choose" };
-const DROP_SUB = { song: ".mid · drop both songs at once to fill A and B", donor: ".mid" };
+const DROP_TEXT = { song: "Drop a MIDI file, or click to choose", donor: "Drop a MIDI file, or click to choose" };
+const DROP_SUB = { song: "", donor: "" };
 async function choose(kind) {
   const file = $(kind).files[0];
   $(`${kind}-name`).textContent = file ? file.name : DROP_TEXT[kind];
@@ -205,7 +218,21 @@ async function choose(kind) {
 $("song").onchange = () => choose("song");
 $("donor").onchange = () => choose("donor");
 $("parts").onchange = refresh;
-$("parts-clear").onclick = () => { $("parts").value = ""; refresh(); };
+iconButton($("parts-clear"), { onPress: () => { $("parts").value = ""; refresh(); } });
+$("parts-pick").onclick = (e) => { e.preventDefault(); $("parts").click(); };
+// what you marked, as a parts file to keep or edit: the same file the build gets
+function saveParts() {
+  const f = partsFile();
+  if (!f) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(f);
+  a.download = `${(picked.song?.file.name || "song").replace(/\.midi?$/i, "")}-parts.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+iconButton($("parts-save"), { onPress: saveParts });
+$("parts-save").removeAttribute("title");         // its words are written under it
+$("parts-save-label").onclick = saveParts;
 
 // ---- drag and drop: a MIDI file onto Song A or Song B, a parts file onto Parts; several
 // files dropped anywhere fill Song A, then Song B, then the parts file (all three at once works).
@@ -313,74 +340,140 @@ function drawNotes() {
     `<rect x="${n.s}" y="${hi - n.p + 1}" width="${Math.max(w, n.e - n.s)}" height="0.8"></rect>`).join("");
 }
 
-// ---- hear a part: Song A from the part's start to its end, through the lab's sounds (in the
-// browser; a local server plays its own way, so the buttons only show here)
+// ---- hear the song: from the playhead to the end of the part it is in, through the project's
+// sounds (in the browser; a local server plays its own way, so Play only shows here). A click on
+// the strip puts the playhead there and it drags; "+" starts a new part at it.
 const canPlay = !!B.soundfont;
 const synth = canPlay ? makeSynth(() => B.soundfont()) : null;
-let playing = -1;
+let playing = -1, headT = 0, scrubbing = false, run = 0;
 const songName = () => { const f = picked.song.file; return `song-a:${f.name}:${f.size}:${f.lastModified}`; };
+const partAt = (t) => ed.parts.findIndex((p) => p.sSec <= t && t < p.eSec);
+function drawHead() {
+  const h = $("parts-head");
+  h.classList.toggle("hidden", !barCount());
+  h.style.left = `${(100 * headT) / (ed.end || 1)}%`;
+}
 function playButtons() {
-  document.querySelectorAll("#parts-names [data-play]").forEach((b) => {
-    const on = +b.dataset.play === playing;
+  document.querySelectorAll("#part-edit [data-play]").forEach((b) => {
+    const on = playing >= 0;
     b.innerHTML = iconSvg(on ? "stop" : "play");          // the design's icons, as on every Play
     b.setAttribute("aria-pressed", String(on));
-    b.setAttribute("aria-label", on ? "stop" : `play ${nameOf(+b.dataset.play)}`);
+    b.setAttribute("aria-label", on ? "stop" : "play from the playhead");
   });
 }
 function stopPart() {
   playing = -1;
-  $("parts-head").classList.add("hidden");
   playButtons();
   synth?.stop();
 }
-async function playPart(k) {
-  if (playing === k) return stopPart();
-  playing = k;
+async function playFrom(t) {
+  const k = partAt(t);
+  if (k < 0) return stopPart();                  // in a gap between parts
+  playing = k; headT = t;
   playButtons();
-  const ok = await synth.start(songName(), picked.song.file.arrayBuffer(), ed.parts[k].sSec);
-  if (!ok || playing !== k) return;
-  const head = $("parts-head");
-  head.classList.remove("hidden");
+  const mine = ++run;
+  const ok = await synth.start(songName(), picked.song.file.arrayBuffer(), t);
+  if (!ok || mine !== run) return;
   const follow = () => {
-    if (playing !== k) return;
-    const p = ed.parts[k], t = synth.time;             // the part may be moved while it plays
-    if (!p || t >= p.eSec - 0.01 || t < p.sSec - 0.5) return stopPart();
-    head.style.left = `${(100 * t) / (ed.end || 1)}%`;
+    if (mine !== run || playing < 0) return;
+    const p = ed.parts[playing], now = synth.time;     // the part may be moved while it plays
+    if (!p || now >= p.eSec - 0.01) { if (p) headT = p.eSec; drawHead(); return stopPart(); }
+    if (!scrubbing) { headT = now; drawHead(); }
     requestAnimationFrame(follow);
   };
   follow();
 }
-$("parts-names").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-play]");
-  if (!b) return;
-  e.preventDefault();
-  playPart(+b.dataset.play);
-});
-window.partsPlayer = { synth, get playing() { return playing; } };
+// Play: the selected part, from the playhead when it is inside it, else from the part's start
+function togglePlay() {
+  if (playing >= 0) return stopPart();
+  const p = ed.parts[sel];
+  playFrom(headT >= p.sSec && headT < p.eSec ? headT : p.sSec);
+}
+// put the playhead at t: the part under it is picked, and playing carries on from there
+function moveHead(t, seek) {
+  headT = Math.max(0, Math.min(ed.end, t));
+  const k = partAt(headT);
+  if (k >= 0 && k !== sel) { sel = k; drawParts(); }
+  drawHead();
+  if (seek && playing >= 0) playFrom(headT);
+}
+window.partsPlayer = { synth, get playing() { return playing; }, get head() { return headT; } };
 
+// The selected part: a click on the strip picks it; the row under the strip edits it (play,
+// name, first and last bar), adds a part at the playhead or removes this one.
+let sel = 0;
 function drawParts() {
-  const strip = $("parts-strip"), x = (t) => `${(100 * t) / (ed.end || 1)}%`;
-  const keep = +$("part").value || 0;
+  const x = (t) => `${(100 * t) / (ed.end || 1)}%`;
   if (playing >= ed.parts.length) stopPart();
+  sel = Math.max(0, Math.min(sel, ed.parts.length - 1));
   $("parts-marks").innerHTML = ed.parts.map((p, k) =>
-      `<div class="seg" style="left:${x(p.sSec)};width:calc(${x(p.eSec)} - ${x(p.sSec)})">` +
-      `<span class="seg-label">${esc(nameOf(k))}</span></div>`).join("") +
+      `<div class="seg${k === sel ? " sel" : ""}" style="left:${x(p.sSec)};width:calc(${x(p.eSec)} - ${x(p.sSec)})">` +
+      `<span class="seg-label" data-start="${k}" title="Play from the start of ${esc(nameOf(k))}">${esc(nameOf(k))}</span></div>`).join("") +
     ed.bars.map((t) => `<span class="tick" style="left:${x(t)}"></span>`).join("") +
     lines().map((l) => `<span class="cut" data-k="${l.k}" data-edge="${l.edge}" style="left:${x(l.at)}" title="` +
       (l.shared ? `${esc(barsText(l.k - 1))} | ${esc(barsText(l.k))}: drag to move, double-click to join`
         : `${l.edge === "s" ? "start" : "end"} of ${esc(nameOf(l.k))}: drag to move`) + `"></span>`).join("");
-  $("parts-names").innerHTML = ed.parts.map((p, k) =>
-    `<label>${esc(barsText(k))}<span class="row"><input class="ds-field" data-k="${k}" value="${esc(p.name || "")}" placeholder="${esc(barsText(k))}">` +
-    (canPlay ? `<button type="button" class="iconbutton" data-size="s" data-play="${k}"></button>` : "") + `</span></label>`).join("");
-  playButtons();
-  $("part").innerHTML = ed.parts.map((p, k) =>
-    `<option value="${k}">${esc(nameOf(k))} (${p.sSec.toFixed(0)}-${p.eSec.toFixed(0)} s)</option>`).join("");
-  $("part").value = String(Math.min(keep, ed.parts.length - 1));
+  drawEdit();
   check();
 }
+function drawEdit() {
+  const p = ed.parts[sel], box = $("part-edit");
+  if (!p) { box.innerHTML = ""; return; }
+  box.innerHTML = (canPlay ? `<button type="button" class="iconbutton" data-size="s" data-play="${sel}"></button>` : "") +
+    `<input type="text" class="ds-field" id="part-name" value="${esc(p.name || "")}" placeholder="${esc(barsText(sel))}" aria-label="Name of this part">` +
+    `<span>bars</span><input type="number" class="ds-field" id="part-from" min="1" max="${barCount()}" value="${p.s + 1}" aria-label="First bar">` +
+    `<span>to</span><input type="number" class="ds-field" id="part-to" min="1" max="${barCount()}" value="${Math.max(p.s + 1, p.e)}" aria-label="Last bar">`;
+  playButtons();
+  drawHead();
+}
+// Move one edge of part k to bar `want`, never past its neighbours; a start shared with the part
+// before moves both. Returns whether anything moved.
+function moveEdge(k, edge, want) {
+  const p = ed.parts[k], prev = ed.parts[k - 1], next = ed.parts[k + 1];
+  if (edge === "s") {
+    const shared = !!prev && prev.e === p.s;
+    const lo = shared ? prev.s + 1 : prev ? prev.e : 0;
+    const b = Math.max(lo, Math.min(p.e - 1, want));
+    if (b === p.s) return false;
+    p.s = b; p.sSec = ed.bars[b];
+    if (shared) { prev.e = b; prev.eSec = ed.bars[b]; }
+  } else {
+    if (next && next.s === p.e) return moveEdge(k + 1, "s", want);     // the end is the next part's start
+    const hi = next ? next.s : barCount();
+    const b = Math.max(p.s + 1, Math.min(hi, want));
+    if (b === p.e) return false;
+    p.e = b; p.eSec = secAt(b);
+  }
+  return true;
+}
+function cutAt(k, b) {
+  const p = ed.parts[k];
+  if (!p || !(p.s < b && b < p.e)) return;
+  ed.parts.splice(k + 1, 0, { s: b, e: p.e, sSec: ed.bars[b], eSec: p.eSec, name: "", extra: { ...p.extra } });
+  p.e = b; p.eSec = ed.bars[b];
+  drawParts();
+}
+$("part-edit").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-play]")) return;
+  e.preventDefault();
+  togglePlay();
+});
+$("part-edit").addEventListener("input", (e) => {
+  if (e.target.id !== "part-name") return;
+  ed.parts[sel].name = e.target.value;
+  strip.querySelectorAll(".seg-label")[sel].textContent = nameOf(sel);
+});
+$("part-edit").addEventListener("change", (e) => {
+  const v = Math.round(+e.target.value);
+  if (e.target.id === "part-from") moveEdge(sel, "s", v - 1);
+  else if (e.target.id === "part-to") moveEdge(sel, "e", v);
+  else return;
+  drawParts();
+});
 
 // Pointer on the strip: a line drags (snapping to bars, never past its neighbours); a click
-// inside a part cuts it at the nearest bar. A double-click on a shared line joins its parts.
+// inside a part selects it. A double-click on a shared line joins its parts; inside a part, it
+// cuts the part at the nearest bar.
 const strip = $("parts-strip");
 const timeAt = (e) => {
   const r = strip.getBoundingClientRect();
@@ -396,66 +489,114 @@ strip.addEventListener("pointerdown", (e) => {
     strip.setPointerCapture(e.pointerId);
     return;
   }
-  const b = nearestBar(timeAt(e));
-  const k = ed.parts.findIndex((p) => p.s < b && b < p.e);
-  if (k < 0) return; // on a line already, or in a gap
-  const p = ed.parts[k];
-  ed.parts.splice(k + 1, 0, { s: b, e: p.e, sSec: ed.bars[b], eSec: p.eSec, name: "", extra: { ...p.extra } });
-  p.e = b; p.eSec = ed.bars[b];
-  drawParts();
+  const start = e.target.closest("[data-start]");
+  if (start && canPlay) {                         // a part's name: hear it from its first bar, to check the cut
+    const p = ed.parts[+start.dataset.start];
+    moveHead(p.sSec, false);
+    playFrom(p.sSec);
+    return;
+  }
+  // anywhere else (the playhead too), as in the demo: the playhead comes to the pointer and follows
+  // it while held; playing, the sound moves once, on letting go
+  scrubbing = true;
+  strip.setPointerCapture(e.pointerId);
+  moveHead(timeAt(e), false);
 });
 strip.addEventListener("pointermove", (e) => {
+  if (scrubbing) { moveHead(timeAt(e), false); return; }
   if (!dragging) return;
-  const { k, edge } = dragging, p = ed.parts[k], prev = ed.parts[k - 1], next = ed.parts[k + 1];
-  if (edge === "s") {
-    const shared = !!prev && prev.e === p.s;
-    const lo = shared ? prev.s + 1 : prev ? prev.e : 0;
-    const b = Math.max(lo, Math.min(p.e - 1, nearestBar(timeAt(e))));
-    if (b === p.s) return;
-    p.s = b; p.sSec = ed.bars[b];
-    if (shared) { prev.e = b; prev.eSec = ed.bars[b]; }
-  } else {
-    const hi = next ? next.s : barCount();
-    const b = Math.max(p.s + 1, Math.min(hi, nearestEdge(timeAt(e))));
-    if (b === p.e) return;
-    p.e = b; p.eSec = secAt(b);
-  }
+  const { k, edge } = dragging;
+  // a dragged end line belongs to this part alone (lines() shows a shared one as the next start)
+  const moved = edge === "s" ? moveEdge(k, "s", nearestBar(timeAt(e))) : moveEdge(k, "e", nearestEdge(timeAt(e)));
+  if (!moved) return;
   drawParts();
   strip.querySelector(`.cut[data-k="${k}"][data-edge="${edge}"]`)?.classList.add("drag");
 });
 const endDrag = () => { dragging = null; strip.querySelectorAll(".cut.drag").forEach((c) => c.classList.remove("drag")); };
-strip.addEventListener("pointerup", endDrag);
-strip.addEventListener("pointercancel", endDrag);
+
+// ---- zoom, as on a clip in Ableton Live: drag the bar numbers down to zoom in and up to zoom out
+// (a sideways drag scrolls, the grabbed moment staying under the pointer); pinch or ⌘-scroll on the
+// strip zooms around the pointer; a double-click on the numbers shows the whole song again.
+const view = $("parts-view"), canvas = $("parts-canvas"), ruler = $("parts-ruler");
+let zoom = 1;
+const maxZoom = () => Math.max(1, (barCount() * 160) / (view.clientWidth || 1));     // a bar at most 160 px
+const timeAtX = (x) => { const r = canvas.getBoundingClientRect(); return clampTime(((x - r.left) / r.width) * ed.end, ed.end); };
+// zoom to z, keeping time t (default: the one under clientX) at clientX
+function setZoom(z, clientX, t) {
+  const r = view.getBoundingClientRect(), x = clientX ?? r.left + r.width / 2;
+  const at = t ?? timeAtX(x);
+  zoom = Math.max(1, Math.min(maxZoom(), z));
+  canvas.style.width = `${zoom * 100}%`;
+  view.scrollLeft = (at / (ed.end || 1)) * canvas.clientWidth - (x - r.left);
+  drawRuler();
+}
+// the bar numbers, as many as fit: every bar, or every 2nd, 4th, 8th...
+function drawRuler() {
+  const n = barCount();
+  if (!n) { ruler.innerHTML = ""; return; }
+  const every = [1, 2, 4, 8, 16, 32, 64].find((s) => (s * canvas.clientWidth) / n >= 28) || 128;
+  ruler.innerHTML = ed.bars.map((t, i) => (i % every ? "" : `<span class="bar-no" style="left:${(100 * t) / ed.end}%">${i + 1}</span>`)).join("");
+}
+let rz = null;                                    // a press on the ruler: { x, y, z, t, moved }
+ruler.addEventListener("pointerdown", (e) => {
+  if (!barCount()) return;
+  rz = { x: e.clientX, y: e.clientY, z: zoom, t: timeAtX(e.clientX), moved: false };
+  ruler.setPointerCapture(e.pointerId);
+});
+ruler.addEventListener("pointermove", (e) => {
+  if (!rz) return;
+  if (!rz.moved && Math.abs(e.clientX - rz.x) + Math.abs(e.clientY - rz.y) < 4) return;
+  rz.moved = true;
+  setZoom(rz.z * Math.exp((e.clientY - rz.y) * 0.015), e.clientX, rz.t);
+});
+ruler.addEventListener("pointerup", (e) => {
+  if (rz && !rz.moved) moveHead(timeAtX(e.clientX), true);   // a click on the numbers moves the playhead
+  rz = null;
+});
+ruler.addEventListener("pointercancel", () => { rz = null; });
+ruler.addEventListener("dblclick", () => setZoom(1));
+view.addEventListener("wheel", (e) => {
+  if (!(e.ctrlKey || e.metaKey) || !barCount()) return;     // a pinch arrives as ctrl + wheel
+  e.preventDefault();
+  setZoom(zoom * Math.exp(-e.deltaY * 0.01), e.clientX);
+}, { passive: false });
+new ResizeObserver(() => drawRuler()).observe(view);
+strip.addEventListener("pointerup", (e) => {
+  if (scrubbing) { scrubbing = false; moveHead(timeAt(e), true); }
+  endDrag();
+});
+strip.addEventListener("pointercancel", () => { scrubbing = false; endDrag(); });
 // The strip holds the pointer while a line is pressed, so the double-click lands on the strip:
 // find the shared line under the pointer by position (within its 13 px handle).
 strip.addEventListener("dblclick", (e) => {
   const r = strip.getBoundingClientRect();
   const px = (t) => r.left + (r.width * t) / (ed.end || 1);
   const l = lines().find((x) => x.shared && Math.abs(px(x.at) - e.clientX) <= 7);
-  if (!l) return;
+  if (!l) {
+    const b = nearestBar(timeAt(e)), k = ed.parts.findIndex((p) => p.s < b && b < p.e);
+    if (k >= 0) cutAt(k, b);
+    return;
+  }
   const prev = ed.parts[l.k - 1], p = ed.parts[l.k];
   prev.e = p.e; prev.eSec = p.eSec;
   ed.parts.splice(l.k, 1);
+  sel = l.k - 1;
   drawParts();
-});
-$("parts-names").addEventListener("input", (e) => {
-  const k = e.target.dataset?.k;
-  if (k == null) return;
-  ed.parts[+k].name = e.target.value;
-  strip.querySelectorAll(".seg-label")[+k].textContent = nameOf(+k);
-  const opt = $("part").options[+k];
-  if (opt) opt.textContent = `${nameOf(+k)} (${ed.parts[+k].sSec.toFixed(0)}-${ed.parts[+k].eSec.toFixed(0)} s)`;
 });
 
 async function refresh() {
   if (playing >= 0) stopPart();
   const ready = picked.song && picked.donor;
   $("step-parts").classList.toggle("off", !ready);
-  $("parts-clear").classList.toggle("hidden", !$("parts").files[0]);
-  $("part").innerHTML = "";
+  const file = $("parts").files[0] || null;
+  // the file line: an invitation, or which file filled the strip with a way to forget it
+  $("parts-clear").classList.toggle("hidden", !file);
+  $("parts-pick").classList.toggle("hidden", !!file);
+  $("parts-note").className = "";
+  $("parts-note").textContent = "Have a parts.json? Drop it here, or";
+  ed.listed = 0;
   if (!ready) return check();
   try {
-    const file = $("parts").files[0] || null;
     const got = await B.partsPreview(picked.song.file, picked.donor.file, file);
     // a loaded parts file's own Song A parts (their extra fields) and Song B parts go along unchanged
     let donor = null, fileParts = null;
@@ -464,21 +605,20 @@ async function refresh() {
       catch { donor = null; fileParts = null; }
     }
     const editable = Array.isArray(got.bars) && got.bars.length > 1;
-    $("parts-strip").classList.toggle("hidden", !editable);
-    $("parts-names").classList.toggle("hidden", !editable);
-    $("parts-help").classList.toggle("hidden", !editable);
+    for (const id of ["parts-view", "part-edit", "parts-help", "parts-save", "parts-save-label"]) $(id).classList.toggle("hidden", !editable);
+    if (file) $("parts-note").textContent = `${got.parts.length} parts from ${file.name}`;
     if (!editable) {
-      // an engine without bar lines (an older local server): the parts as a plain list
-      ed.bars = [];
-      $("part").innerHTML = got.parts.map((p) =>
-        `<option value="${p.index}">${esc(p.name)} (${p.start.toFixed(0)}-${p.end.toFixed(0)} s)</option>`).join("");
+      // an engine without bar lines (an older local server): its parts are used as they are
+      ed.bars = []; ed.parts = [];
+      ed.listed = got.parts.length;
       return check();
     }
+    if (!file) sel = 0;
+    headT = 0;
     loadParts(got, fileParts, donor);
     drawNotes();
-    $("parts-note").className = "mut";
-    $("parts-note").textContent = file ? `${got.parts.length} parts loaded from the file` : "Optional: a parts.json names each part of Song A (and of Song B) with its start and end in seconds; loading one fills the strip above";
     drawParts();
+    setZoom(1);                                   // a new song opens whole
   } catch (err) {
     $("parts-note").className = "err";
     $("parts-note").textContent = err.message;
@@ -492,11 +632,11 @@ function roleMap(kind) {
 
 function problem() {
   if (!picked.song || !picked.donor) return "pick both MIDI files";
-  if (!$("part").options.length) return "no parts to try";
+  if (!(barCount() ? ed.parts.length : ed.listed)) return "no parts to try";
   const s = Object.values(roleMap("song")), d = Object.values(roleMap("donor"));
-  if (!s.includes("chords")) return "Song A needs a chords track";
-  if (!d.includes("style")) return "Song B needs a style track";
-  for (const [label, roles] of [["Song A", s], ["Song B", d]])
+  if (!s.includes("chords")) return "The song to cover needs a chords track";
+  if (!d.includes("style")) return "The style song needs a style track";
+  for (const [label, roles] of [["The song to cover", s], ["The style song", d]])
     for (const r of ["bass", "lead", "drums"])
       if (roles.filter((x) => x === r).length > 1) return `${label}: pick only one ${r} track`;
   return "";
@@ -505,7 +645,7 @@ function problem() {
 function check() {
   const p = problem();
   // a role problem opens that song's table, so the fix is right there
-  for (const [kind, label] of [["song", "Song A"], ["donor", "Song B"]])
+  for (const [kind, label] of [["song", "The song to cover"], ["donor", "The style song"]])
     if (p.startsWith(label) && picked[kind] && !shown[kind]) { shown[kind] = true; drawTracks(kind); }
   $("step-go").classList.toggle("off", !picked.song || !picked.donor);
   $("go").disabled = !!p;
@@ -518,7 +658,7 @@ $("go").onclick = async () => {
   let id;
   try {
     id = (await B.createLab({song: picked.song.file, donor: picked.donor.file, parts: partsFile() || $("parts").files[0] || null,
-                             songRoles: roleMap("song"), donorRoles: roleMap("donor"), part: +$("part").value})).id;
+                             songRoles: roleMap("song"), donorRoles: roleMap("donor"), part: 0})).id;
   } catch (err) {
     $("go-note").textContent = err.message;
     $("go").disabled = false;
@@ -528,14 +668,14 @@ $("go").onclick = async () => {
   prog.classList.remove("hidden");
   const poll = async () => {
     const st = await B.status(id);
-    if (st.state === "ready") { location.href = labHref(id, B.where); return; }
+    if (st.state === "ready") { location.href = labHref(id); return; }
     if (st.state === "error") {
       prog.innerHTML = `<span class="err">build failed: ${esc(st.error)}</span>`;
       $("go").disabled = false;
       return;
     }
     prog.textContent = `building 24 versions… ${Math.round((Date.now() - t0) / 1000)} s`;
-    setTimeout(poll, B.where === "browser" ? 200 : 1000);
+    setTimeout(poll, 200);
   };
   poll();
 };
