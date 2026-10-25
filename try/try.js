@@ -9,6 +9,7 @@
 import { demoShell } from "../vendor/design/demoshell.js";
 import { iconButton } from "../vendor/design/iconbutton.js";
 import { seekable, outputDelay as delayOf } from "../vendor/design/playhead.js";
+import { fetchSoundfont } from "../vendor/design/sound/soundfont.js";
 
 const DATA = "../data";
 // the design system's shared General MIDI bank, the same sounds as the lab and every other tool
@@ -70,10 +71,7 @@ const spessa = {
   synth: null, seq: null, out: null, ready: null, sf: null, loaded: "", mode: "", running: false, op: 0, from: 0,
   restarted: 0, struck: [], bins: new Map(),
   soundfont() {                                           // fetched as the page opens, used on the first click
-    this.sf = this.sf || fetch(SOUNDFONT).then((r) => {
-      if (!r.ok) throw new Error("the soundfont is missing");
-      return r.arrayBuffer();
-    });
+    this.sf = this.sf || fetchSoundfont(SOUNDFONT);         // the copy every studio shares, else ours
     this.sf.catch(() => { this.sf = null; });
     return this.sf;
   },

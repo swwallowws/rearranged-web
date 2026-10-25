@@ -3,6 +3,7 @@
 // pages do not care where they run. Nothing is uploaded anywhere.
 import init, * as engine from "../pkg/rearranged.js";
 import { store } from "./store.js";
+import { fetchSoundfont } from "../vendor/design/sound/soundfont.js";
 
 const TAGS = ["sounds like Song A", "sounds like Song B", "clashes", "too busy", "empty", "mechanical", "love it"];
 let ready = null;
@@ -52,14 +53,15 @@ async function build(r) {
   return lab;
 }
 
-// The sounds: the design system's shared General MIDI bank (vendor/design/sound/gm.sf3,
-// GeneralUser GS trimmed; see its NOTICE; `sync.sh <web> --sound` updates it), fetched once and
-// kept in the Cache API, unless the visitor picked a soundfont of their own (kept in IndexedDB,
-// as before). Bump BUILTIN_VERSION when a sync changes gm.sf3.
+// The sounds: the design system's shared General MIDI bank (GeneralUser GS trimmed; see its
+// NOTICE; `sync.sh <web> --sound` updates it). fetchSoundfont gets the one copy every studio on
+// the site shares, fetched once and kept in the Cache API, else this site's own
+// vendor/design/sound/gm.sf3; unless the visitor picked a soundfont of their own (kept in
+// IndexedDB, as before). Bump BUILTIN_VERSION when a sync changes gm.sf3.
 const BUILTIN_VERSION = "1";
 const BUILTIN = new URL(`../vendor/design/sound/gm.sf3?v=${BUILTIN_VERSION}`, import.meta.url).href;
 const BUILTIN_NAME = "built-in General MIDI (GeneralUser GS)";
-const CACHE = "rearranged-soundfont";
+const OLD_CACHE = "rearranged-soundfont";     // where this site kept its own copy before
 let builtin = null;
 
 async function soundfontRecord() {
@@ -67,20 +69,7 @@ async function soundfontRecord() {
 }
 
 function builtinBytes() {
-  builtin = builtin || (async () => {
-    let cache = null;
-    try { cache = await caches.open(CACHE); } catch { /* no Cache API here: fetch every time */ }
-    let res = cache && (await cache.match(BUILTIN));
-    if (!res) {
-      res = await fetch(BUILTIN);
-      if (!res.ok) throw new Error(`the built-in sounds did not load (${res.status})`);
-      if (cache) {
-        for (const old of await cache.keys()) if (old.url !== BUILTIN) await cache.delete(old);
-        await cache.put(BUILTIN, res.clone()).catch(() => {});
-      }
-    }
-    return res.arrayBuffer();
-  })();
+  builtin = builtin || fetchSoundfont(BUILTIN, { retire: [OLD_CACHE] });
   builtin.catch(() => { builtin = null; });            // a failed load can be tried again
   return builtin;
 }
@@ -92,6 +81,14 @@ export function browserBackend() {
       const all = (await store.all("labs")).filter((r) => r.lab);
       return all.sort((a, b) => b.at - a.at).map((r) => ({
         id: r.id, title: r.title, donor: r.donor, part: r.lab.part, versions: r.lab.variants.length, at: r.at }));
+    },
+    /** a project gone for good: its record and every file it built */
+    async deleteLab(id) {
+      sessions.get(id)?.free?.();
+      sessions.delete(id);
+      building.delete(id);
+      await store.del("labs", id);
+      await store.clear("files", `${id}/`);
     },
     async guess(file, kind) {
       await loadEngine();
