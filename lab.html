@@ -113,7 +113,7 @@
 <script type="module">
 import { setupRuns } from "./js/runs.js";
 import { makeSynth } from "./js/synth.js";
-import { seekable, heardTime } from "./vendor/design/playhead.js";
+import { seekable, heardTime, outputDelay } from "./vendor/design/playhead.js";
 import { iconButton } from "./vendor/design/iconbutton.js";
 
 const $ = (id) => document.getElementById(id);
@@ -125,6 +125,8 @@ const synth = makeSynth(() => B.soundfont(lid));
 
 let lab = null, parts = [], pick = 0, loopOn = true, ready = false;
 let headAt = null;                      // where a drag holds the head, while it lasts
+let wrap = null;                        // the loop's last jump back: { end, to }
+let drawn = 0;                          // where the head was last drawn (seconds)
 let at = 0;                             // where the head rests while nothing plays
 let cover = null, bytes = null;         // the cover playing: {stem, midi}, and its file
 let roll = null, ratings = {};
@@ -252,7 +254,7 @@ async function start(from) {
   playBtn.setPressed(true);
 }
 function stop() { at = synth.time; synth.stop(); playBtn.setPressed(false); }
-$("play").onclick = () => { synth.audio(); if (playing()) stop(); else start(at); };
+$("play").onclick = () => { synth.audio(); wrap = null; if (playing()) stop(); else start(at); };
 synth.onended = () => { synth.running = false; at = 0; playBtn.setPressed(false); };
 
 // a click or drag anywhere on the notes moves the playhead (the design system's playhead.js):
@@ -261,7 +263,7 @@ seekable($("rollbox"), {
   duration: () => songLength(),
   enabled: () => ready,
   onScrub: (t) => { headAt = t; if (!playing()) at = t; },
-  onSeek: (t) => { headAt = null; if (playing()) start(t); else at = t; pickAt(t); },
+  onSeek: (t) => { headAt = null; wrap = null; if (playing()) start(t); else at = t; pickAt(t); },
   onCancel: () => { headAt = null; },
 });
 function pickAt(t) {
@@ -269,11 +271,21 @@ function pickAt(t) {
   if (i >= 0 && i !== pick) choose(i, false);
 }
 
+// the head as heard. Right after the loop jumps back, the part's last moments are still on their
+// way to the speakers (the output's delay), so the head runs on to the part's end and then jumps,
+// instead of waiting at the start as it does after a seek.
+function heardHead() {
+  const raw = synth.time - outputDelay(synth.ctx);
+  if (wrap && synth.from === wrap.to && raw < wrap.to) return wrap.end - (wrap.to - raw);
+  return heardTime(synth.time, synth.from, synth.ctx);
+}
+
 // the loop: at the picked part's end, back to its start
 function follow() {
   const p = part();
-  if (playing() && loopOn && p && synth.time >= p.end - 0.02) start(p.start);
-  const t = Math.min(headAt ?? (playing() ? heardTime(synth.time, synth.from, synth.ctx) : at), songLength());
+  if (playing() && loopOn && p && synth.time >= p.end - 0.02) { wrap = { end: synth.time, to: p.start }; start(p.start); }
+  const t = Math.min(headAt ?? (playing() ? heardHead() : at), songLength());
+  drawn = t;
   if (songLength()) {
     $("head").style.left = `${(100 * t) / songLength()}%`;
     $("time").textContent = `${fmt(t)} / ${fmt(songLength())}`;
@@ -540,7 +552,7 @@ async function open() {
 // a small read-only handle for checks (tools/browser-check.mjs reads it; nothing here depends on it)
 window.rearrangedLab = {
   get ready() { return ready; }, get playing() { return playing(); }, get songSrc() { return cover?.midi || ""; },
-  get songTime() { return now(); }, get songLength() { return songLength(); }, get part() { return pick; },
+  get songTime() { return now(); }, get headTime() { return drawn; }, get songLength() { return songLength(); }, get part() { return pick; },
   get partSpan() { return part() ? [part().start, part().end] : [0, 0]; },
   get loop() { return loopOn; }, get settings() { return JSON.parse(JSON.stringify(body())); },
   get synthLoaded() { return synth.loaded; }, get peak() { return synth.peak(); },
